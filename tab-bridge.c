@@ -17,6 +17,75 @@ foot_tab_is_active(const struct terminal *term)
            !term->window->closing && !term->shutdown.in_progress;
 }
 
+struct wl_window *
+foot_tab_window(struct terminal *term) { return term->window; }
+
+struct terminal *
+foot_tab_active(struct wl_window *win) { return win->term; }
+
+size_t
+foot_tab_count(struct wl_window *win) { return tll_length(win->tabs); }
+
+struct terminal *
+foot_tab_at(struct wl_window *win, size_t index)
+{
+    tll_foreach(win->tabs, it) {
+        if (index-- == 0)
+            return it->item;
+    }
+    return NULL;
+}
+
+bool
+foot_tab_is_live(struct terminal *term) { return !term->shutdown.in_progress; }
+
+bool
+foot_tab_window_ready(struct wl_window *win)
+{
+    return win->is_configured && !win->closing;
+}
+
+const char *
+foot_tab_title(struct terminal *term)
+{
+    return term->window_title != NULL ? term->window_title : "foot";
+}
+
+bool
+foot_tab_activity(struct terminal *term) { return term->tab_activity; }
+
+bool
+foot_tab_bell(struct terminal *term) { return term->tab_bell; }
+
+void
+foot_tab_options(const struct terminal *term, struct foot_tab_options *out)
+{
+    const struct config *conf = term->conf;
+    *out = (struct foot_tab_options){
+        .enabled = conf->tab_bar.enabled,
+        .min_tabs = conf->tab_bar.min_tabs,
+        .style = conf->tab_bar.style,
+        .position = conf->tab_bar.position,
+        .background = conf->tab_bar.background,
+        .active_foreground = conf->tab_bar.active_foreground,
+        .active_background = conf->tab_bar.active_background,
+        .inactive_foreground = conf->tab_bar.inactive_foreground,
+        .inactive_background = conf->tab_bar.inactive_background,
+        .active_font_style = conf->tab_bar.active_font_style,
+        .inactive_font_style = conf->tab_bar.inactive_font_style,
+        .max_title_length = conf->tab_bar.max_title_length,
+        .padding = conf->tab_bar.padding,
+        .title_template = conf->tab_bar.title_template,
+        .active_title_template = conf->tab_bar.active_title_template,
+        .separator = conf->tab_bar.separator,
+        .cell_width = term->cell_width,
+        .cell_height = term->cell_height,
+        .width = term->width,
+        .height = term->height,
+        .alpha = term->colors.alpha,
+    };
+}
+
 static void
 hide_surface(struct wayl_sub_surface *surf)
 {
