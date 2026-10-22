@@ -859,6 +859,7 @@ bool term_shutdown(struct terminal *term);
 int term_destroy(struct terminal *term);
 
 void term_update_ascii_printer(struct terminal *term);
+size_t term_print_ascii_run(struct terminal *term, const uint8_t *data, size_t len);
 void term_single_shift(struct terminal *term, enum charset_designator idx);
 
 void term_reset(struct terminal *term, bool hard);

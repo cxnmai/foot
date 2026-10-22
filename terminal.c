@@ -4185,6 +4185,42 @@ ascii_printer_fast(struct terminal *term, char32_t wc)
     }
 }
 
+size_t
+term_print_ascii_run(struct terminal *term, const uint8_t *data, size_t len)
+{
+    /* Only the ordinary printer can bypass per-character dispatch. Leave
+     * wrapping, insert mode, charsets and metadata to the scalar path. */
+    struct grid *grid = term->grid;
+    if (term->ascii_printer != &ascii_printer_fast || grid->cursor.lcf ||
+        grid->cur_row->extra != NULL)
+        return 0;
+
+    const int col = grid->cursor.point.col;
+    const size_t limit = min(len, (size_t)(term->cols - col));
+    size_t count = 0;
+    while (count < limit && data[count] >= 0x20 && data[count] <= 0x7e)
+        count++;
+    if (count < 2)
+        return 0;
+
+    struct row *row = grid->cur_row;
+    row->dirty = true;
+    row->linebreak = true;
+    for (size_t i = 0; i < count; i++) {
+        row->cells[col + i].wc = data[i];
+        row->cells[col + i].attrs = term->vt.attrs;
+    }
+    term_reset_grapheme_state(term);
+    term->vt.last_printed = data[count - 1];
+#if defined(FOOT_GRAPHEME_CLUSTERING)
+    term->vt.codepoint_merging_ok = true;
+#endif
+    const int next = col + count;
+    grid->cursor.lcf = next == term->cols;
+    grid->cursor.point.col = grid->cursor.lcf ? next - 1 : next;
+    return count;
+}
+
 static void
 ascii_printer_single_shift(struct terminal *term, char32_t wc)
 {

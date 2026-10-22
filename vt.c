@@ -1149,6 +1149,14 @@ vt_from_slave(struct terminal *term, const uint8_t *data, size_t len)
 
     const uint8_t *p = data;
     for (size_t i = 0; i < len; i++, p++) {
+        if (current_state == STATE_GROUND && *p >= 0x20 && *p <= 0x7e) {
+            const size_t count = term_print_ascii_run(term, p, len - i);
+            if (count > 0) {
+                i += count - 1;
+                p += count - 1;
+                continue;
+            }
+        }
         switch (current_state) {
         case STATE_GROUND:              current_state = state_ground_switch(term, *p); break;
         case STATE_ESCAPE:              current_state = state_escape_switch(term, *p); break;
