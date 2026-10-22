@@ -221,6 +221,9 @@ const TestABI = struct {
     var active_index: usize = 1;
     var fills: usize = 0;
     var glyphs: usize = 0;
+    var fill_x: [32]i32 = undefined;
+    var fill_width: [32]i32 = undefined;
+    var fill_color: [32]u32 = undefined;
 
     fn reset() void {
         configuration = std.mem.zeroes(struct_foot_tab_options);
@@ -252,12 +255,17 @@ const TestABI = struct {
         return switch (cp) { 0x754c => 2, 0x301 => 0, else => 1 };
     }
     fn foot_tab_fill(_: *anyopaque, x: i32, y: i32, width: i32, height: i32,
-        _: u32, alpha: u16, _: bool) void
+        color: u32, alpha: u16, _: bool) void
     {
         std.debug.assert(x >= 0 and width > 0 and x + width <= configuration.width);
         std.debug.assert(y == barY(configuration) and height == configuration.cell_height);
         std.debug.assert(y >= 0 and y + height <= configuration.height);
         std.debug.assert(alpha == (if (fills == 0) configuration.alpha else @as(u16, 65535)));
+        if (fills < fill_x.len) {
+            fill_x[fills] = x;
+            fill_width[fills] = width;
+            fill_color[fills] = color;
+        }
         fills += 1;
     }
     fn foot_tab_glyph(_: *anyopaque, _: *struct_terminal, _: u32, _: u32,
@@ -329,6 +337,24 @@ test "tab-bar Kitty fade has exact quarter steps and mirrored trailing edge" {
     try std.testing.expectEqual(@as(u32, 0xbfbfbf), fadeColor(0, 0xffffff, 3));
     try std.testing.expectEqual(@as(u32, 0xffffff), fadeColor(0, 0xffffff, 4));
     try std.testing.expectEqual(@as(u32, 0x804020), fadeColor(0x804020, 0x804020, 1));
+    TestABI.reset();
+    TestABI.count = 2;
+    TestABI.configuration.title_template = "x";
+    TestABI.configuration.active_background = 0xffffff;
+    TestABI.configuration.inactive_background = 0xffffff;
+    const t: *Terminal = @ptrFromInt(4096);
+    tab_bar_render(t, @ptrFromInt(8192), false);
+    // Bar, opaque tab rectangle, then alternating leading/trailing fade cells.
+    for (0..4) |i| {
+        const leading = 2 + i * 2;
+        const trailing = leading + 1;
+        try std.testing.expectEqual(fadeColor(0, 0xffffff, @intCast(i + 1)), TestABI.fill_color[leading]);
+        try std.testing.expectEqual(TestABI.fill_color[leading], TestABI.fill_color[trailing]);
+        try std.testing.expectEqual(@as(i32, @intCast(i * 8)), TestABI.fill_x[leading]);
+        try std.testing.expectEqual(TestABI.fill_width[1] - @as(i32, @intCast((i + 1) * 8)), TestABI.fill_x[trailing]);
+    }
+    try std.testing.expectEqual(TestABI.fill_width[1] + 8, TestABI.fill_x[10]);
+    try std.testing.expect(tab_bar_hit_test(t, TestABI.fill_width[1], 0) == null);
 }
 
 test "tab-bar painting stays clipped for both styles and positions at narrow widths" {
