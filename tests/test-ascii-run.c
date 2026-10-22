@@ -250,7 +250,7 @@ test_generic_fallback(void)
 {
     struct fixture batch, reference;
     const struct config conf = {.url.osc8_underline = OSC8_UNDERLINE_ALWAYS};
-    for (int mode = 0; mode < 5; mode++) {
+    for (int mode = 0; mode < 6; mode++) {
         init(&batch, COLS, 8);
         init(&reference, COLS, 8);
         struct fixture *fixtures[] = {&batch, &reference};
@@ -281,6 +281,10 @@ test_generic_fallback(void)
                 break;
             }
             term_update_ascii_printer(t);
+            if (mode == 5) {
+                t->charsets.set[G1] = CHARSET_GRAPHIC;
+                term_single_shift(t, G1);
+            }
         }
         const uint8_t data[] = "`q~ generic";
         check_run(&batch, &reference, data, sizeof(data) - 1, 0);
