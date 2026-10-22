@@ -419,6 +419,10 @@ struct terminal {
 
     pid_t slave;
     int ptmx;
+    bool ptmx_registered;
+    int resize_timeout_fd;
+    bool tab_activity;
+    bool tab_bell;
 
     struct vt vt;
     struct grid *grid;
@@ -844,7 +848,8 @@ struct terminal *term_init(
     struct wayland *wayl, const char *foot_exe, const char *cwd,
     const char *token, const char *pty_path,
     int argc, char *const *argv, const char *const *envp,
-    void (*shutdown_cb)(void *data, int exit_code), void *shutdown_data);
+    void (*shutdown_cb)(void *data, int exit_code), void *shutdown_data,
+    struct wl_window *window);
 
 bool term_shutdown(struct terminal *term);
 int term_destroy(struct terminal *term);

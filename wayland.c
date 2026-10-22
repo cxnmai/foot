@@ -2068,7 +2068,6 @@ wayl_win_init(struct terminal *term, const char *token)
     win->term = term;
     win->csd_mode = CSD_UNKNOWN;
     win->csd.move_timeout_fd = -1;
-    win->resize_timeout_fd = -1;
     win->scale = -1.;
 
     win->wm_capabilities.maximize = true;
@@ -2356,8 +2355,6 @@ wayl_win_destroy(struct wl_window *win)
 
     wayl_roundtrip(win->term->wl);
 
-    if (win->resize_timeout_fd >= 0)
-        fdm_del(win->term->wl->fdm, win->resize_timeout_fd);
     free(win);
 }
 

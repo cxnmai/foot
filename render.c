@@ -4442,9 +4442,9 @@ fdm_tiocswinsz(struct fdm *fdm, int fd, int events, void *data)
         delayed_reflow_of_normal_grid(term);
     }
 
-    if (term->window->resize_timeout_fd >= 0) {
-        fdm_del(fdm, term->window->resize_timeout_fd);
-        term->window->resize_timeout_fd = -1;
+    if (term->resize_timeout_fd >= 0) {
+        fdm_del(fdm, term->resize_timeout_fd);
+        term->resize_timeout_fd = -1;
     }
     return true;
 }
@@ -4460,15 +4460,15 @@ send_dimensions_to_client(struct terminal *term)
         delayed_reflow_of_normal_grid(term);
 
         /* And make sure to reset and deallocate a lingering timer */
-        if (win->resize_timeout_fd >= 0) {
-            fdm_del(term->fdm, win->resize_timeout_fd);
-            win->resize_timeout_fd = -1;
+        if (term->resize_timeout_fd >= 0) {
+            fdm_del(term->fdm, term->resize_timeout_fd);
+            term->resize_timeout_fd = -1;
         }
     } else {
         /* Send new dimensions to client "in a while" */
         assert(win->is_resizing && term->conf->resize_delay_ms > 0);
 
-        int fd = win->resize_timeout_fd;
+        int fd = term->resize_timeout_fd;
         uint16_t delay_ms = term->conf->resize_delay_ms;
         bool successfully_scheduled = false;
 
@@ -4482,7 +4482,7 @@ send_dimensions_to_client(struct terminal *term)
                 fd = -1;
             }
 
-            win->resize_timeout_fd = fd;
+            term->resize_timeout_fd = fd;
         }
 
         if (fd >= 0) {
@@ -4497,7 +4497,7 @@ send_dimensions_to_client(struct terminal *term)
             if (timerfd_settime(fd, 0, &timeout, NULL) < 0) {
                 LOG_ERRNO("failed to arm TIOCSWINSZ timer");
                 fdm_del(term->fdm, fd);
-                win->resize_timeout_fd = -1;
+                term->resize_timeout_fd = -1;
             } else
                 successfully_scheduled = true;
         }

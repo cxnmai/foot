@@ -368,7 +368,9 @@ struct xdg_activation_token_context {
 
 struct wayland;
 struct wl_window {
-    struct terminal *term;
+    struct terminal *term;  /* Active session; window owns tab membership */
+    tll(struct terminal *) tabs;
+    bool closing;
     struct wayl_surface surface;
     struct xdg_surface *xdg_surface;
     struct xdg_toplevel *xdg_toplevel;
@@ -445,7 +447,6 @@ struct wl_window {
         enum csd_mode csd_mode;
     } configure;
 
-    int resize_timeout_fd;
 };
 
 struct terminal;

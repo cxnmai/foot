@@ -1173,7 +1173,8 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
           struct wayland *wayl, const char *foot_exe, const char *cwd,
           const char *token, const char *pty_path,
           int argc, char *const *argv, const char *const *envp,
-          void (*shutdown_cb)(void *data, int exit_code), void *shutdown_data)
+          void (*shutdown_cb)(void *data, int exit_code), void *shutdown_data,
+          struct wl_window *window)
 {
     int ptmx = -1;
     int flash_fd = -1;
@@ -1287,6 +1288,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .conf = conf,
         .slave = -1,
         .ptmx = ptmx,
+        .resize_timeout_fd = -1,
         .ptmx_buffers = tll_init(),
         .ptmx_paste_buffers = tll_init(),
         .font_sizes = {
