@@ -326,7 +326,7 @@ tab_abi = custom_target(
   command: [zig, 'translate-c', '-lc', '@INPUT@'], capture: true)
 tabs_object = custom_target(
   'tabs-zig', input: ['tabs.zig', tab_abi], output: 'tabs-zig.o',
-  depend_files: files('tab-bar.zig', 'tab-label.zig'),
+  depend_files: files('tab-bar.zig', 'tab-label.zig', 'tab-policy.zig'),
   command: [zig, 'build-obj', '-O', 'safe', '-fPIC', '-fcompiler-rt', '-lc',
             '--dep', 'tab_abi', '-Mroot=@INPUT0@', '-Mtab_abi=@INPUT1@',
             '-femit-bin=@OUTPUT@'])

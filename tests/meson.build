@@ -7,6 +7,13 @@ config_test = executable(
 
 test('config', config_test)
 
+test('zig-tab-policy', zig,
+  args: ['test', '-O', 'safe', '-lc', '--dep', 'tab_abi',
+         '-Mroot=' + meson.project_source_root() / 'tab-policy.zig',
+         '-Mtab_abi=' + tab_abi.full_path()],
+  depends: tabs_object,
+  timeout: 120)
+
 test('zig-tabs', zig,
   args: ['test', '-O', 'safe', '-lc', '--dep', 'tab_abi',
          '-Mroot=' + meson.project_source_root() / 'tab-bar.zig',

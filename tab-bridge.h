@@ -8,6 +8,12 @@
 struct terminal;
 struct wl_window;
 
+enum foot_tab_resize_options {
+    FOOT_TAB_RESIZE_FORCE = 1 << 0,
+    FOOT_TAB_RESIZE_BY_CELLS = 1 << 1,
+    FOOT_TAB_RESIZE_KEEP_GRID = 1 << 2,
+};
+
 struct foot_tab_options {
     bool enabled;
     uint32_t min_tabs;

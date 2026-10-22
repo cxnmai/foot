@@ -13,6 +13,10 @@
 #include "terminal.h"
 #include "wayland.h"
 
+_Static_assert((int)FOOT_TAB_RESIZE_FORCE == RESIZE_FORCE, "resize ABI mismatch");
+_Static_assert((int)FOOT_TAB_RESIZE_BY_CELLS == RESIZE_BY_CELLS, "resize ABI mismatch");
+_Static_assert((int)FOOT_TAB_RESIZE_KEEP_GRID == RESIZE_KEEP_GRID, "resize ABI mismatch");
+
 bool
 foot_tab_is_active(const struct terminal *term)
 {

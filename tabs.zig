@@ -3,6 +3,7 @@ comptime {
 }
 
 const c = @import("tab_abi");
+const policy = @import("tab-policy.zig");
 const Term = c.struct_terminal;
 const Window = c.struct_wl_window;
 
@@ -56,19 +57,7 @@ export fn tabs_new(term: *Term) bool {
 }
 
 export fn tabs_resize(win: *Window, width: c_int, height: c_int, opts: u8) bool {
-    if (!c.foot_tab_window_ready(win)) return false;
-    const active = c.foot_tab_active(win) orelse return false;
-    const resized = c.foot_tab_resize_one(active, width, height, opts);
-    c.foot_tab_save_size(win);
-    var w: c_int = 0;
-    var h: c_int = 0;
-    c.foot_tab_content_size(win, &w, &h);
-    for (0..c.foot_tab_count(win)) |i| {
-        const candidate = c.foot_tab_at(win, i) orelse continue;
-        if (candidate != active and c.foot_tab_is_live(candidate))
-            _ = c.foot_tab_resize_one(candidate, w, h, opts & ~@as(u8, 8)); // RESIZE_KEEP_GRID
-    }
-    return resized;
+    return policy.resizeGroup(c, win, width, height, opts);
 }
 
 export fn tabs_refresh_layout(win: *Window) void {
@@ -76,7 +65,7 @@ export fn tabs_refresh_layout(win: *Window) void {
     var width: c_int = 0;
     var height: c_int = 0;
     c.foot_tab_content_size(win, &width, &height);
-    _ = tabs_resize(win, width, height, 1); // RESIZE_FORCE
+    _ = tabs_resize(win, width, height, c.FOOT_TAB_RESIZE_FORCE);
 }
 
 export fn tabs_close_window(win: *Window) void {
