@@ -122,7 +122,7 @@ sync_output(void *data,
 }
 
 struct presentation_context {
-    struct terminal *term;
+    double refresh_rate;  /* Snapshot: feedback may outlive its terminal tab */
     struct timeval input;
     struct timeval commit;
 };
@@ -134,7 +134,6 @@ presented(void *data,
           uint32_t refresh, uint32_t seq_hi, uint32_t seq_lo, uint32_t flags)
 {
     struct presentation_context *ctx = data;
-    struct terminal *term = ctx->term;
     const struct timeval *input = &ctx->input;
     const struct timeval *commit = &ctx->commit;
 
@@ -149,9 +148,9 @@ presented(void *data,
     int chars = 0;
 
     if (use_input && timercmp(&presented, input, <))
-        return;
+        goto done;
     else if (timercmp(&presented, commit, <))
-        return;
+        goto done;
 
     LOG_DBG("commit: %lu s %lu µs, presented: %lu s %lu µs",
             commit->tv_sec, commit->tv_usec, presented.tv_sec, presented.tv_usec);
@@ -183,10 +182,8 @@ presented(void *data,
         "presented (total: %llu µs)", (unsigned long long)diff.tv_usec);
 
     unsigned frame_count = 0;
-    if (tll_length(term->window->on_outputs) > 0) {
-        const struct monitor *mon = tll_front(term->window->on_outputs);
-        frame_count = (diff.tv_sec * 1000000. + diff.tv_usec) / (1000000. / mon->refresh);
-    }
+    if (ctx->refresh_rate > 0.)
+        frame_count = (diff.tv_sec * 1000000. + diff.tv_usec) / (1000000. / ctx->refresh_rate);
 
     presentation_statistics.total++;
     if (frame_count >= 2)
@@ -207,6 +204,7 @@ presented(void *data,
 
 #undef _log_fmt
 
+done:
     wp_presentation_feedback_destroy(wp_presentation_feedback);
     free(ctx);
 }
@@ -3703,7 +3701,8 @@ grid_render(struct terminal *term)
         } else {
             struct presentation_context *ctx = xmalloc(sizeof(*ctx));
             *ctx = (struct presentation_context){
-                .term = term,
+                .refresh_rate = tll_length(term->window->on_outputs) > 0
+                    ? tll_front(term->window->on_outputs)->refresh : 0.,
                 .input.tv_sec = term->render.input_time.tv_sec,
                 .input.tv_usec = term->render.input_time.tv_nsec / 1000,
                 .commit.tv_sec = commit_time.tv_sec,
