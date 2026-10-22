@@ -7,6 +7,8 @@
 
 #include "config.h"
 #include "ime.h"
+#include "input.h"
+#include "selection.h"
 #include "render.h"
 #include "terminal.h"
 #include "wayland.h"
@@ -119,6 +121,16 @@ transfer_focus(struct terminal *old, struct terminal *next)
         if (seat->mouse_focus == old) {
             seat->mouse_focus = next;
             next->active_surface = old->active_surface;
+            selection_finalize(seat, old, seat->pointer.serial);
+            tll_foreach(seat->mouse.buttons, button) {
+                if (button->item.send_to_client && !term_mouse_grabbed(old, seat)) {
+                    term_mouse_up(old, button->item.button, seat->mouse.row, seat->mouse.col,
+                                  seat->mouse.y - old->margins.top,
+                                  seat->mouse.x - old->margins.left,
+                                  seat->kbd.shift, seat->kbd.alt, seat->kbd.ctrl);
+                }
+            }
+            mouse_coord_pixel_to_cell(seat, next, seat->mouse.x, seat->mouse.y);
             tll_free(seat->mouse.buttons);
             seat->mouse.count = 0;
             seat->mouse.aggregated[0] = seat->mouse.aggregated[1] = 0;

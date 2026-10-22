@@ -872,11 +872,13 @@ term_set_fonts(struct terminal *term, struct fcft_font *fonts[static 4],
         if (conf->resize_keep_grid)
             resize_opts |= RESIZE_KEEP_GRID;
 
-        render_resize(
-            term,
-            (int)roundf(term->width / term->scale),
-            (int)roundf(term->height / term->scale),
-            resize_opts);
+        if (tabs_is_active(term)) {
+            tabs_resize(term->window, (int)roundf(term->width / term->scale),
+                        (int)roundf(term->height / term->scale), resize_opts);
+        } else {
+            render_resize(term, (int)roundf(term->width / term->scale),
+                          (int)roundf(term->height / term->scale), resize_opts);
+        }
     }
     return true;
 }
@@ -4804,6 +4806,8 @@ term_send_size_notification(struct terminal *term)
 void
 term_theme_switch_to_dark(struct terminal *term)
 {
+    if (term->window == NULL || term->shutdown.in_progress)
+        return;
     if (term->colors.active_theme == COLOR_THEME_DARK)
         return;
 
@@ -4824,6 +4828,8 @@ term_theme_switch_to_dark(struct terminal *term)
 void
 term_theme_switch_to_light(struct terminal *term)
 {
+    if (term->window == NULL || term->shutdown.in_progress)
+        return;
     if (term->colors.active_theme == COLOR_THEME_LIGHT)
         return;
 
