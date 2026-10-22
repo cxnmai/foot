@@ -1713,6 +1713,112 @@ parse_section_mouse(struct context *ctx)
 }
 
 static bool
+value_to_tab_title_template(struct context *ctx, char **result)
+{
+    char *value = NULL;
+    if (ctx->value[0] == '\0')
+        value = xstrdup("");
+    else if (!value_to_str(ctx, &value))
+        return false;
+
+    for (const char *p = value; *p != '\0'; p++) {
+        if (*p == '}')
+            goto invalid;
+        if (*p != '{')
+            continue;
+
+        static const char *const placeholders[] = {
+            "{index}", "{title}", "{activity}", "{bell}",
+        };
+        size_t i;
+        for (i = 0; i < ALEN(placeholders); i++) {
+            size_t len = strlen(placeholders[i]);
+            if (strncmp(p, placeholders[i], len) == 0) {
+                p += len - 1;
+                break;
+            }
+        }
+        if (i == ALEN(placeholders))
+            goto invalid;
+    }
+    free(*result);
+    *result = value;
+    return true;
+
+invalid:
+    LOG_CONTEXTUAL_ERR("invalid tab title template placeholder or braces");
+    free(value);
+    return false;
+}
+
+static bool
+parse_section_tab_bar(struct context *ctx)
+{
+    struct config *conf = ctx->conf;
+    const char *key = ctx->key;
+
+    if (streq(key, "enabled"))
+        return value_to_bool(ctx, &conf->tab_bar.enabled);
+    else if (streq(key, "position"))
+        return value_to_enum(ctx, (const char *[]){"top", "bottom", NULL},
+                             (int *)&conf->tab_bar.position);
+    else if (streq(key, "style"))
+        return value_to_enum(ctx, (const char *[]){"fade", "separator", NULL},
+                             (int *)&conf->tab_bar.style);
+    else if (streq(key, "active-font-style") || streq(key, "inactive-font-style")) {
+        int style;
+        if (!value_to_enum(ctx, (const char *[]){
+                "normal", "bold", "italic", "bold-italic", NULL}, &style))
+            return false;
+        if (streq(key, "active-font-style"))
+            conf->tab_bar.active_font_style = style;
+        else
+            conf->tab_bar.inactive_font_style = style;
+        return true;
+    }
+    else if (streq(key, "min-tabs") || streq(key, "max-title-length") ||
+             streq(key, "padding"))
+    {
+        bool padding = streq(key, "padding");
+        uint32_t min = padding ? 0 : 1;
+        uint32_t max = padding ? 32 : 1024;
+        uint32_t value;
+        if (!value_to_uint32(ctx, 10, &value))
+            return false;
+        if (value < min || value > max) {
+            LOG_CONTEXTUAL_ERR("value must be between %u and %u", min, max);
+            return false;
+        }
+        if (padding)
+            conf->tab_bar.padding = value;
+        else if (streq(key, "min-tabs"))
+            conf->tab_bar.min_tabs = value;
+        else
+            conf->tab_bar.max_title_length = value;
+        return true;
+    }
+    else if (streq(key, "background"))
+        return value_to_color(ctx, &conf->tab_bar.background, false);
+    else if (streq(key, "active-foreground"))
+        return value_to_color(ctx, &conf->tab_bar.active_foreground, false);
+    else if (streq(key, "active-background"))
+        return value_to_color(ctx, &conf->tab_bar.active_background, false);
+    else if (streq(key, "inactive-foreground"))
+        return value_to_color(ctx, &conf->tab_bar.inactive_foreground, false);
+    else if (streq(key, "inactive-background"))
+        return value_to_color(ctx, &conf->tab_bar.inactive_background, false);
+    else if (streq(key, "title-template"))
+        return value_to_tab_title_template(ctx, &conf->tab_bar.title_template);
+    else if (streq(key, "active-title-template"))
+        return value_to_tab_title_template(ctx, &conf->tab_bar.active_title_template);
+    else if (streq(key, "separator"))
+        return value_to_str(ctx, &conf->tab_bar.separator);
+
+    LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
+    return false;
+}
+
+static bool
 parse_section_csd(struct context *ctx)
 {
     struct config *conf = ctx->conf;
@@ -3112,6 +3218,7 @@ enum section {
     SECTION_COLORS_LIGHT,
     SECTION_CURSOR,
     SECTION_MOUSE,
+    SECTION_TAB_BAR,
     SECTION_CSD,
     SECTION_KEY_BINDINGS,
     SECTION_SEARCH_BINDINGS,
@@ -3144,6 +3251,7 @@ static const struct {
     [SECTION_COLORS_LIGHT] =    {&parse_section_colors_light, "colors-light"},
     [SECTION_CURSOR] =          {&parse_section_cursor, "cursor"},
     [SECTION_MOUSE] =           {&parse_section_mouse, "mouse"},
+    [SECTION_TAB_BAR] =         {&parse_section_tab_bar, "tab-bar"},
     [SECTION_CSD] =             {&parse_section_csd, "csd"},
     [SECTION_KEY_BINDINGS] =    {&parse_section_key_bindings, "key-bindings"},
     [SECTION_SEARCH_BINDINGS] = {&parse_section_search_bindings, "search-bindings"},
