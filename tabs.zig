@@ -44,9 +44,7 @@ export fn tabs_step(term: *Term, direction: c_int) void {
 }
 
 export fn tabs_new(term: *Term) bool {
-    var options: c.struct_foot_tab_options = undefined;
-    c.foot_tab_options(term, &options);
-    if (!options.enabled or !tabs_is_active(term)) return false;
+    if (!tabs_is_active(term)) return false;
     const next = c.foot_tab_spawn(term) orelse return false;
     tabs_activate(next);
     tabs_refresh_layout(c.foot_tab_window(next) orelse return false);

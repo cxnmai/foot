@@ -451,11 +451,13 @@ update_term_for_output_change(struct terminal *term)
         resize_opts |= RESIZE_FORCE;
     }
 
-    render_resize(
-        term,
-        (int)roundf(logical_width),
-        (int)roundf(logical_height),
-        resize_opts);
+    if (tabs_is_active(term)) {
+        tabs_resize(term->window, (int)roundf(logical_width),
+                    (int)roundf(logical_height), resize_opts);
+    } else {
+        render_resize(term, term->window->content_width, term->window->content_height,
+                      resize_opts & ~RESIZE_KEEP_GRID);
+    }
 }
 
 static void

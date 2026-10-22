@@ -1831,6 +1831,7 @@ term_destroy(struct terminal *term)
 {
     if (term == NULL)
         return 0;
+    term->shutdown.in_progress = true;
 
     tll_foreach(term->wl->terms, it) {
         if (it->item == term) {

@@ -5465,6 +5465,8 @@ render_buffer_release_callback(struct buffer *buf, void *data)
      */
     struct terminal *term = data;
 
+    if (!tabs_is_active(term))
+        return;
     if (likely(buf->age != 1))
         return;
 

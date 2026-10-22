@@ -198,6 +198,14 @@ foot_tab_spawn(struct terminal *term)
 bool
 foot_tab_resize_one(struct terminal *term, int width, int height, uint8_t opts)
 {
+    if (term->window->term != term) {
+        float old_scale = term->scale;
+        bool scaled = term_update_scale(term);
+        bool fonts = term_font_dpi_changed(term, old_scale);
+        term_font_subpixel_changed(term);
+        if (scaled || fonts)
+            opts |= RESIZE_FORCE;
+    }
     return render_resize(term, width, height, opts);
 }
 
