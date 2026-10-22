@@ -18,6 +18,7 @@
 #include "debug.h"
 #include "osc.h"
 #include "sixel.h"
+#include "kitty-graphics.h"
 #include "util.h"
 #include "xmalloc.h"
 
@@ -44,6 +45,9 @@ enum state {
     STATE_DCS_PASSTHROUGH,
 
     STATE_SOS_PM_APC_STRING,
+    STATE_APC_ENTRY,
+    STATE_APC_GRAPHICS,
+    STATE_APC_ESCAPE,
 
     STATE_UTF8_21,
     STATE_UTF8_31,
@@ -74,6 +78,9 @@ static const char *const state_names[] = {
     [STATE_DCS_PASSTHROUGH] = "DCS passthrough",
 
     [STATE_SOS_PM_APC_STRING] = "sos/pm/apc string",
+    [STATE_APC_ENTRY] = "APC entry",
+    [STATE_APC_GRAPHICS] = "APC graphics",
+    [STATE_APC_ESCAPE] = "APC escape",
 
     [STATE_UTF8_21] = "UTF8 2-byte 1/2",
     [STATE_UTF8_31] = "UTF8 3-byte 1/3",
@@ -796,7 +803,8 @@ state_escape_switch(struct terminal *term, uint8_t data)
     case 0x5b:                                                                            action_clear(term);              return STATE_CSI_ENTRY;
     case 0x5c:                                           action_esc_dispatch(term, data);                                  return STATE_GROUND;
     case 0x5d:                                                                            action_osc_start(term, data);    return STATE_OSC_STRING;
-    case 0x5e ... 0x5f:                                                                                                    return STATE_SOS_PM_APC_STRING;
+    case 0x5e:                                                                                                            return STATE_SOS_PM_APC_STRING;
+    case 0x5f:                                                                                                            return STATE_APC_ENTRY;
     case 0x60 ... 0x7e:                                  action_esc_dispatch(term, data);                                  return STATE_GROUND;
     case 0x7f:                                           action_ignore(term);                                              return STATE_ESCAPE;
     }
@@ -1036,6 +1044,43 @@ state_sos_pm_apc_string_switch(struct terminal *term, uint8_t data)
 }
 
 static enum state
+state_apc_entry_switch(struct terminal *term, uint8_t data)
+{
+    if (data == 'G') {
+        if (term->graphics == NULL)
+            term->graphics = kg_new(term);
+        kg_begin(term->graphics);
+        return STATE_APC_GRAPHICS;
+    }
+    return state_sos_pm_apc_string_switch(term, data);
+}
+
+static enum state
+state_apc_graphics_switch(struct terminal *term, uint8_t data)
+{
+    if (data == 0x1b)
+        return STATE_APC_ESCAPE;
+    if (data == 0x18 || data == 0x1a || (data >= 0x80 && data <= 0x9f)) {
+        kg_abort(term->graphics);
+        return STATE_GROUND;
+    }
+    kg_put(term->graphics, data);
+    return STATE_APC_GRAPHICS;
+}
+
+static enum state
+state_apc_escape_switch(struct terminal *term, uint8_t data)
+{
+    if (data == '\\\\') {
+        kg_end(term->graphics);
+        return STATE_GROUND;
+    }
+    kg_abort(term->graphics);
+    action_clear(term);
+    return state_escape_switch(term, data);
+}
+
+static enum state
 state_utf8_21_switch(struct terminal *term, uint8_t data)
 {
     switch (data) {
@@ -1119,6 +1164,9 @@ vt_from_slave(struct terminal *term, const uint8_t *data, size_t len)
         case STATE_DCS_IGNORE:          current_state = state_dcs_ignore_switch(term, *p); break;
         case STATE_DCS_PASSTHROUGH:     current_state = state_dcs_passthrough_switch(term, *p); break;
         case STATE_SOS_PM_APC_STRING:   current_state = state_sos_pm_apc_string_switch(term, *p); break;
+        case STATE_APC_ENTRY:           current_state = state_apc_entry_switch(term, *p); break;
+        case STATE_APC_GRAPHICS:        current_state = state_apc_graphics_switch(term, *p); break;
+        case STATE_APC_ESCAPE:          current_state = state_apc_escape_switch(term, *p); break;
 
         case STATE_UTF8_21:             current_state = state_utf8_21_switch(term, *p); break;
         case STATE_UTF8_31:             current_state = state_utf8_31_switch(term, *p); break;

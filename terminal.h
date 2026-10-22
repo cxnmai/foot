@@ -399,7 +399,9 @@ struct colors {
     enum which_color_theme active_theme;
 };
 
+struct kg_engine;
 struct terminal {
+    struct kg_engine *graphics;
     struct fdm *fdm;
     struct reaper *reaper;
     const struct config *conf;
@@ -722,6 +724,7 @@ struct terminal {
             bool hidden;
         } last_cursor;
 
+        bool graphics_backgrounds_ready;
         struct buffer *last_buf;     /* Buffer we rendered to last time */
         size_t frames_since_last_immediate_release;
         bool preapply_last_frame_damage;
