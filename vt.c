@@ -1071,7 +1071,7 @@ state_apc_graphics_switch(struct terminal *term, uint8_t data)
 static enum state
 state_apc_escape_switch(struct terminal *term, uint8_t data)
 {
-    if (data == '\\\\') {
+    if (data == '\\') {
         kg_end(term->graphics);
         return STATE_GROUND;
     }

@@ -331,6 +331,19 @@ tabs_object = custom_target(
             '--dep', 'tab_abi', '-Mroot=@INPUT0@', '-Mtab_abi=@INPUT1@',
             '-femit-bin=@OUTPUT@'])
 
+graphics_abi = custom_target(
+  'graphics-abi', input: 'kitty-graphics.h', output: 'graphics-abi.zig',
+  command: [zig, 'translate-c', '-lc', '@INPUT@'], capture: true)
+graphics_object = custom_target(
+  'graphics-zig', input: ['graphics.zig', graphics_abi], output: 'graphics-zig.o',
+  depend_files: files('graphics-command.zig', 'graphics-render.zig'),
+  command: [zig, 'build-obj', '-O', 'safe', '-fPIC', '-fcompiler-rt', '-lc',
+            '--dep', 'graphics_abi', '-Mroot=@INPUT0@', '-Mgraphics_abi=@INPUT1@',
+            '-femit-bin=@OUTPUT@'])
+
+png = dependency('libpng')
+zlib = dependency('zlib')
+
 executable(
   'foot',
   'async.c', 'async.h',
@@ -349,7 +362,8 @@ executable(
   'reaper.c', 'reaper.h',
   'render.c', 'render.h',
   'tab-bridge.c', 'tab-bridge.h', 'tab-draw.c', 'tabs.h', 'tab-bar.h',
-  tabs_object,
+  'graphics-native.c', 'graphics-paint.c', 'kitty-graphics.h',
+  tabs_object, graphics_object,
   'search.c', 'search.h',
   'server.c', 'server.h', 'client-protocol.h',
   'shm.c', 'shm.h',
@@ -363,7 +377,7 @@ executable(
   'xkbcommon-vmod.h',
   srgb_funcs, wl_proto_src + wl_proto_headers, version,
   dependencies: [math, threads, libepoll, pixman, wayland_client, wayland_cursor, xkb, fontconfig, utf8proc,
-                 tllist, fcft],
+                 tllist, fcft, png, zlib],
   link_with: pgolib,
   install: true)
 

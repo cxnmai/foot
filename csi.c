@@ -19,6 +19,7 @@
 #include "grid.h"
 #include "selection.h"
 #include "sixel.h"
+#include "kitty-graphics.h"
 #include "util.h"
 #include "version.h"
 #include "vt.h"
@@ -534,6 +535,8 @@ decset_decrst(struct terminal *term, unsigned param, bool enable)
                 sixel_destroy(&it->item);
                 tll_remove(term->alt.sixel_images, it);
             }
+            if (term->graphics != NULL)
+                kg_clear_screen(term->graphics, 1);
 
             tll_free(term->alt.scroll_damage);
             term_damage_view(term);

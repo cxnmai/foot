@@ -39,6 +39,7 @@
 #include "selection.h"
 #include "shm.h"
 #include "sixel.h"
+#include "kitty-graphics.h"
 #include "slave.h"
 #include "spawn.h"
 #include "tabs.h"
@@ -2060,6 +2061,8 @@ term_destroy(struct terminal *term)
         config_free(term->owned_conf);
         free(term->owned_conf);
     }
+    if (term->graphics != NULL)
+        kg_free(term->graphics);
     free(term);
 
 #if defined(__GLIBC__)
@@ -2180,6 +2183,8 @@ term_reset(struct terminal *term, bool hard)
         sixel_destroy(&it->item);
         tll_remove(term->alt.sixel_images, it);
     }
+    if (term->graphics != NULL)
+        kg_reset(term->graphics);
 
     notify_free(term, &term->kitty_notification);
     tll_foreach(term->active_notifications, it) {
@@ -3108,6 +3113,9 @@ term_scroll_partial(struct terminal *term, struct scroll_region region, int rows
     }
 
     sixel_scroll_up(term, rows);
+    if (term->graphics != NULL)
+        kg_scroll(term->graphics, term->grid == &term->alt, region.start, region.end, rows,
+                  term->grid->num_rows - term->rows);
 
     /* How many lines from the scrollback start is the current viewport? */
     int view_sb_start_distance = grid_row_abs_to_sb(
@@ -3194,6 +3202,9 @@ term_scroll_reverse_partial(struct terminal *term,
     }
 
     sixel_scroll_down(term, rows);
+    if (term->graphics != NULL)
+        kg_scroll(term->graphics, term->grid == &term->alt, region.start, region.end, -rows,
+                  term->grid->num_rows - term->rows);
 
     const bool view_follows = term->grid->view == term->grid->offset;
     term->grid->offset -= rows;

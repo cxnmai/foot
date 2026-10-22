@@ -46,6 +46,7 @@
 #include "util.h"
 #include "tabs.h"
 #include "tab-bar.h"
+#include "kitty-graphics.h"
 #include "xmalloc.h"
 
 #define TIME_SCROLL_DAMAGE 0
@@ -3574,6 +3575,10 @@ grid_render(struct terminal *term)
 
     render_sixel_images(term, buf->pix[0], &damage, &cursor);
 
+    /* Kitty graphics below the text (negative z-index). */
+    if (term->graphics != NULL)
+        kg_render(term->graphics, term, buf->pix[0], false, wayl_do_linear_blending(term->wl, term->conf));
+
 
     if (term->render.workers.count > 0) {
         mtx_lock(&term->render.workers.lock);
@@ -3637,6 +3642,10 @@ grid_render(struct terminal *term)
     }
 
     pixman_region32_fini(&damage);
+
+    /* Kitty graphics above the text (z-index >= 0). */
+    if (term->graphics != NULL)
+        kg_render(term->graphics, term, buf->pix[0], true, wayl_do_linear_blending(term->wl, term->conf));
 
     render_overlay(term);
     render_ime_preedit(term, buf);
