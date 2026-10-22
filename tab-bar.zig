@@ -1,6 +1,7 @@
 const std = @import("std");
 const label = @import("tab-label.zig");
-const c = @import("tab_abi");
+const abi = @import("tab_abi");
+const c = if (@import("builtin").is_test) TestABI else abi;
 const Terminal = c.struct_terminal;
 const Options = c.struct_foot_tab_options;
 
@@ -19,10 +20,17 @@ fn barY(o: Options) c_int {
     return if (o.position == 0) 0 else @max(0, o.height - o.cell_height);
 }
 
-export fn tab_bar_height(term: ?*const Terminal) c_int {
+export fn tab_bar_height_for_size(term: ?*const Terminal, available_height: c_int) c_int {
     const t = term orelse return 0;
     const win = c.foot_tab_window(@constCast(t)) orelse return 0;
-    return barHeight(options(t), c.foot_tab_count(win));
+    var o = options(t);
+    o.height = available_height;
+    return barHeight(o, c.foot_tab_count(win));
+}
+
+export fn tab_bar_height(term: ?*const Terminal) c_int {
+    const t = term orelse return 0;
+    return tab_bar_height_for_size(t, options(t).height);
 }
 
 export fn tab_bar_y(term: ?*const Terminal) c_int {
@@ -202,3 +210,61 @@ export fn tab_bar_render(term: ?*Terminal, image: ?*anyopaque, srgb: bool) void 
     var layout = Layout.init(t, o) orelse return;
     while (layout.next()) |tab| renderTab(t, pix, o, layout.active, tab, srgb);
 }
+
+// Unit tests exercise the exported ABI without linking a running compositor.
+const TestABI = struct {
+    const struct_terminal = abi.struct_terminal;
+    const struct_wl_window = abi.struct_wl_window;
+    const struct_foot_tab_options = abi.struct_foot_tab_options;
+    var configuration: struct_foot_tab_options = undefined;
+    var count: usize = 3;
+    var active_index: usize = 1;
+    var fills: usize = 0;
+    var glyphs: usize = 0;
+
+    fn reset() void {
+        configuration = std.mem.zeroes(struct_foot_tab_options);
+        configuration.enabled = true;
+        configuration.min_tabs = 1;
+        configuration.cell_width = 8;
+        configuration.cell_height = 16;
+        configuration.width = 320;
+        configuration.height = 64;
+        configuration.max_title_length = 1024;
+        configuration.padding = 1;
+        configuration.alpha = 32768;
+        count = 3;
+        active_index = 1;
+        fills = 0;
+        glyphs = 0;
+    }
+    fn foot_tab_window(_: *struct_terminal) ?*struct_wl_window { return @ptrFromInt(256); }
+    fn foot_tab_count(_: *struct_wl_window) usize { return count; }
+    fn foot_tab_at(_: *struct_wl_window, index: usize) ?*struct_terminal {
+        return if (index < count) @ptrFromInt(4096 + index) else null;
+    }
+    fn foot_tab_active(win: *struct_wl_window) ?*struct_terminal { return foot_tab_at(win, active_index); }
+    fn foot_tab_options(_: *const struct_terminal, out: *struct_foot_tab_options) void { out.* = configuration; }
+    fn foot_tab_title(_: *struct_terminal) [*c]const u8 { return "界a\u{301}{bell}"; }
+    fn foot_tab_activity(_: *struct_terminal) bool { return true; }
+    fn foot_tab_bell(_: *struct_terminal) bool { return true; }
+    fn foot_tab_char_width(cp: u32) i32 {
+        return switch (cp) { 0x754c => 2, 0x301 => 0, else => 1 };
+    }
+    fn foot_tab_fill(_: *anyopaque, x: i32, y: i32, width: i32, height: i32,
+        _: u32, alpha: u16, _: bool) void
+    {
+        std.debug.assert(x >= 0 and width > 0 and x + width <= configuration.width);
+        std.debug.assert(y == barY(configuration) and height == configuration.cell_height);
+        std.debug.assert(y >= 0 and y + height <= configuration.height);
+        std.debug.assert(alpha == (if (fills == 0) configuration.alpha else @as(u16, 65535)));
+        fills += 1;
+    }
+    fn foot_tab_glyph(_: *anyopaque, _: *struct_terminal, _: u32, _: u32,
+        x: i32, y: i32, clip_x: i32, clip_width: i32, _: u32, _: bool) void
+    {
+        std.debug.assert(clip_x >= 0 and clip_x + clip_width <= configuration.width);
+        std.debug.assert(x >= clip_x and x < clip_x + clip_width and y == barY(configuration));
+        glyphs += 1;
+    }
+};
