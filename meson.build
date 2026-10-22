@@ -337,7 +337,7 @@ graphics_abi = custom_target(
   command: [zig, 'translate-c', '-lc', '@INPUT@'], capture: true)
 graphics_object = custom_target(
   'graphics-zig', input: ['graphics.zig', graphics_abi], output: 'graphics-zig.o',
-  depend_files: files('graphics-command.zig', 'graphics-render.zig'),
+  depend_files: files('graphics-command.zig', 'graphics-render.zig', 'graphics-placement.zig'),
   command: [zig, 'build-obj', '-O', 'safe', '-fPIC', '-fcompiler-rt', '-lc',
             '--dep', 'graphics_abi', '-Mroot=@INPUT0@', '-Mgraphics_abi=@INPUT1@',
             '-femit-bin=@OUTPUT@'])

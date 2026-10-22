@@ -12,7 +12,8 @@ const max_placements = 1024;
 const max_dimension = 8192;
 
 const Image = struct { id: u32, number: u32, serial: u64, width: u32, height: u32, rgba: []u8 };
-const Placement = struct { image: usize, id: u32, geometry: c.struct_kg_placement };
+const placement_store = @import("graphics-placement.zig");
+const Placement = placement_store.Placement;
 const Engine = struct {
     term: ?*c.struct_terminal,
     images: [max_images]?Image = @splat(null),
@@ -271,8 +272,8 @@ fn placementGeometry(self: *Engine, cmd: Command, image: Image) c.struct_kg_plac
 }
 
 fn place(self: *Engine, slot: usize, id: u32, geometry: c.struct_kg_placement) Failure!void {
-    if (self.placements.items.len >= max_placements) return error.ENOSPC;
-    self.placements.append(allocator, .{ .image = slot, .id = id, .geometry = geometry }) catch return error.ENOSPC;
+    try placement_store.put(&self.placements, allocator, max_placements,
+        .{ .image = slot, .id = id, .geometry = geometry });
 }
 
 fn freeSlot(self: *Engine) Failure!usize {
@@ -309,8 +310,7 @@ fn store(self: *Engine, cmd: Command, image: Image) Failure!usize {
 fn commitPlacement(self: *Engine, cmd: Command, slot: usize) Failure!void {
     const image = self.images[slot] orelse return error.ENOENT;
     const geometry = placementGeometry(self, cmd, image);
-    const id = image.id;
-    try place(self, slot, id, geometry);
+    try place(self, slot, cmd.unsigned('p', 0), geometry);
     self.damage();
     if (cmd.get('C', 0) != 1) {
         const m = nativeMetrics(self);
