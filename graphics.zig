@@ -547,6 +547,34 @@ export fn kg_scroll(ptr: ?*c.struct_kg_engine, screen: c_int, top: c_int, bottom
     if (changed) self.damage();
 }
 
+test "engine replaces named placements and deletes only the requested ID" {
+    const ptr = kg_new(null).?;
+    defer kg_free(ptr);
+    const packets = [_][]const u8{
+        "f=32,s=1,v=1,i=7,q=2;AQIDBA==",
+        "a=p,i=7,p=1,q=2;",
+        "a=p,i=7,p=2,q=2;",
+    };
+    for (packets) |packet| {
+        kg_begin(ptr);
+        kg_put_bytes(ptr, packet.ptr, packet.len);
+        kg_end(ptr);
+    }
+    for (0..10000) |_| {
+        kg_begin(ptr);
+        kg_put_bytes(ptr, packets[1].ptr, packets[1].len);
+        kg_end(ptr);
+    }
+    try std.testing.expectEqual(@as(usize, 2), kg_placement_count(ptr));
+    const deletion = "a=d,d=I,i=7,p=1,q=2;";
+    kg_begin(ptr);
+    kg_put_bytes(ptr, deletion.ptr, deletion.len);
+    kg_end(ptr);
+    try std.testing.expectEqual(@as(usize, 1), kg_placement_count(ptr));
+    try std.testing.expectEqual(@as(u32, 2), engine(ptr).?.placements.items[0].id);
+    try std.testing.expectEqual(@as(usize, 4), engine(ptr).?.bytes);
+}
+
 test "graphics upload bulk bytes preserve every input split and scalar mixing" {
     const packet = "f=32,s=1,v=1,i=7,q=2;AQIDBA==";
     for (0..2) |mode| {
