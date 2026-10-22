@@ -95,13 +95,20 @@ struct spawn_activation_context {
 };
 
 static void
+free_spawn_activation_context(void *data)
+{
+    struct spawn_activation_context *ctx = data;
+    free(ctx->url);
+    free(ctx);
+}
+
+static void
 activation_token_done(const char *token, void *data)
 {
     struct spawn_activation_context *ctx = data;
 
     spawn_url_launcher_with_token(ctx->term, ctx->url, token);
-    free(ctx->url);
-    free(ctx);
+    free_spawn_activation_context(ctx);
 }
 
 static bool
@@ -117,7 +124,8 @@ spawn_url_launcher(struct seat *seat, struct terminal *term, const char *url,
     };
 
     if (wayl_get_activation_token(
-            seat->wayl, seat, serial, term->window, &activation_token_done, ctx))
+            seat->wayl, seat, serial, term->window, &activation_token_done, ctx,
+            term, &free_spawn_activation_context))
     {
         /* Context free:d by callback */
         return true;

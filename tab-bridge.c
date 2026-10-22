@@ -243,6 +243,7 @@ foot_tab_remove(struct terminal *term)
     if (win == NULL)
         return;
     render_wait_for_preapply_damage(term);
+    wayl_cancel_activation_tokens(term);
     tll_foreach(win->tabs, it) {
         if (it->item == term) {
             tll_remove(win->tabs, it);

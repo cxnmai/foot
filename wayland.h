@@ -363,6 +363,8 @@ struct xdg_activation_token_context {
     struct wl_window *win;                        /* Need for win->xdg_tokens */
     struct xdg_activation_token_v1 *xdg_token;    /* Used to match token in done() */
     activation_token_cb_t cb;                     /* User provided callback */
+    struct terminal *owner;                       /* NULL for window-owned requests */
+    void (*cancel)(void *data);
     void *cb_data;                                /* Callback user pointer */
 };
 
@@ -567,7 +569,9 @@ void wayl_win_subsurface_destroy(struct wayl_sub_surface *surf);
 
 bool wayl_get_activation_token(
     struct wayland *wayl, struct seat *seat, uint32_t serial,
-    struct wl_window *win, activation_token_cb_t cb, void *cb_data);
+    struct wl_window *win, activation_token_cb_t cb, void *cb_data,
+    struct terminal *owner, void (*cancel)(void *data));
+void wayl_cancel_activation_tokens(struct terminal *term);
 void wayl_activate(struct wayland *wayl, struct wl_window *win, const char *token);
 
 bool wayl_do_linear_blending(const struct wayland *wayl, const struct config *conf);

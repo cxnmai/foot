@@ -2329,6 +2329,8 @@ wayl_win_destroy(struct wl_window *win)
 
     tll_foreach(win->xdg_tokens, it) {
         xdg_activation_token_v1_destroy(it->item->xdg_token);
+        if (it->item->cancel != NULL)
+            it->item->cancel(it->item->cb_data);
         free(it->item);
 
         tll_remove(win->xdg_tokens, it);
@@ -2647,7 +2649,8 @@ wayl_win_set_urgent(struct wl_window *win)
     }
 
     bool success = wayl_get_activation_token(
-        win->term->wl, NULL, 0, win, &activation_token_for_urgency_done, win);
+        win->term->wl, NULL, 0, win, &activation_token_for_urgency_done, win,
+        NULL, NULL);
 
     if (success) {
         win->urgency_token_is_pending = true;
@@ -2830,7 +2833,8 @@ bool
 wayl_get_activation_token(
     struct wayland *wayl, struct seat *seat, uint32_t serial,
     struct wl_window *win,
-    void (*cb)(const char *token, void *data), void *cb_data)
+    void (*cb)(const char *token, void *data), void *cb_data,
+    struct terminal *owner, void (*cancel)(void *data))
 {
     if (wayl->xdg_activation == NULL)
         return false;
@@ -2849,6 +2853,8 @@ wayl_get_activation_token(
         .xdg_token = token,
         .cb = cb,
         .cb_data = cb_data,
+        .owner = owner,
+        .cancel = cancel,
     };
     tll_push_back(win->xdg_tokens, ctx);
 
@@ -2859,6 +2865,21 @@ wayl_get_activation_token(
     xdg_activation_token_v1_add_listener(token, &activation_token_listener, ctx);
     xdg_activation_token_v1_commit(token);
     return true;
+}
+
+void
+wayl_cancel_activation_tokens(struct terminal *term)
+{
+    tll_foreach(term->window->xdg_tokens, it) {
+        struct xdg_activation_token_context *ctx = it->item;
+        if (ctx->owner != term)
+            continue;
+        xdg_activation_token_v1_destroy(ctx->xdg_token);
+        if (ctx->cancel != NULL)
+            ctx->cancel(ctx->cb_data);
+        free(ctx);
+        tll_remove(term->window->xdg_tokens, it);
+    }
 }
 
 void
