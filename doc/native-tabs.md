@@ -2,7 +2,7 @@
 
 This fork adds independent terminal sessions inside one Wayland window.
 The tab policy, title formatting, layout, fade styling and hit testing are
-implemented in `tabs.zig`, `tab-label.zig` and `tab-bar.zig`. The narrow
+implemented in `tabs.zig`, `tab-policy.zig`, `tab-label.zig` and `tab-bar.zig`. The narrow
 `tab-bridge.h` ABI keeps foot's C/Wayland/PTY internals out of Zig.
 `tab-bridge.c` and `tab-draw.c` adapt existing native operations.
 
@@ -21,6 +21,8 @@ meson test -C bld/tabs --print-errorlogs
 
 The `zig-tabs` test includes UTF-8/title sanitization, bounded literal template
 expansion, overflow visibility, fade colors, and shared paint/hit-test geometry.
+`zig-tab-policy` verifies that only the active tab retains the keep-grid resize
+flag, while siblings receive the resulting shared pixel dimensions.
 
 ## Controls and lifetime
 
@@ -65,9 +67,29 @@ No extra label padding is added; each full fade edge has four cells.
 The cursor blink interval is mapped from the system's 1200ms full cycle.
 
 `contrib/kitty-compare.kdl` adds the equivalent niri blur/xray rule, scoped to
-`foot-kitty-compare`. Existing global niri settings already apply 12px rounded
+`foot`, `footclient`, and `foot-kitty-compare`. Existing global niri settings already apply 12px rounded
 corners with clipping, no borders, a 2px focus ring and 10px gaps. Do not modify
 the packaged niri `shell/` files or replace the existing kitty rule.
+
+The profile explicitly enables native blur as well as transparency:
+
+```ini
+[colors-dark]
+alpha=0.70
+alpha-mode=matching
+blur=yes
+```
+
+Blur requires `ext-background-effect-v1` support or a compositor-enforced rule.
+The `[colors-light]` section has independent settings if you switch themes.
+Foot currently makes fullscreen windows opaque; test in tiled, maximized or
+floating mode. To make ordinary launches use the comparison styling, put this
+in `~/.config/foot/foot.ini` (only if you want to change the default profile):
+
+```ini
+include=~/.config/foot/kitty-compare.ini
+app-id=foot
+```
 
 This is a visual/configuration match, not kitty configuration compatibility.
 Font rasterization and renderer details can differ. Python template expressions,
