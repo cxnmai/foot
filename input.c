@@ -87,6 +87,15 @@ pipe_closed:
 static void alternate_scroll(struct seat *seat, int amount, int button);
 
 static bool
+pointer_on_tab_bar(const struct seat *seat, const struct terminal *term)
+{
+    int height = tab_bar_height(term);
+    return term->active_surface == TERM_SURF_GRID && height > 0 &&
+           seat->mouse.y >= tab_bar_y(term) &&
+           seat->mouse.y < tab_bar_y(term) + height;
+}
+
+static bool
 execute_binding(struct seat *seat, struct terminal *term,
                 const struct key_binding *binding, uint32_t serial, int amount)
 {
@@ -2770,6 +2779,10 @@ wl_pointer_motion(void *data, struct wl_pointer *wl_pointer,
         send_to_client = tracker->send_to_client;
     }
 
+    if (surf_kind == TERM_SURF_NONE || pointer_on_tab_bar(seat, term)) {
+        selection_stop_scroll_timer(term);
+        return;
+    }
     switch (surf_kind) {
     case TERM_SURF_NONE:
         break;
@@ -3038,6 +3051,27 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
     enum term_surface surf_kind = TERM_SURF_NONE;
     bool send_to_client = false;
 
+    if (state == WL_POINTER_BUTTON_STATE_RELEASED) {
+        tll_foreach(seat->mouse.buttons, it) {
+            if (it->item.button == button && it->item.surf_kind == TERM_SURF_NONE) {
+                tll_remove(seat->mouse.buttons, it);
+                return;
+            }
+        }
+    }
+    if (state == WL_POINTER_BUTTON_STATE_PRESSED && pointer_on_tab_bar(seat, term)) {
+        struct terminal *hit = tab_bar_hit_test(term, seat->mouse.x, seat->mouse.y);
+        if (button == BTN_LEFT && hit != NULL)
+            tabs_activate(hit);
+        tll_foreach(seat->mouse.buttons, it) {
+            if (it->item.button == button)
+                tll_remove(seat->mouse.buttons, it);
+        }
+        tll_push_back(seat->mouse.buttons, ((struct button_tracker){
+            .button = button, .surf_kind = TERM_SURF_NONE}));
+        return;
+    }
+
     if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
         if (seat->wl_touch != NULL && seat->touch.state == TOUCH_STATE_IDLE) {
             seat->touch.state = TOUCH_STATE_INHIBITED;
@@ -3300,7 +3334,7 @@ wl_pointer_button(void *data, struct wl_pointer *wl_pointer,
             pointer_is_on_button(term, seat, CSD_SURF_CLOSE) &&
             state == WL_POINTER_BUTTON_STATE_RELEASED)
         {
-            term_shutdown(term);
+            tabs_close_window(term->window);
         }
         break;
 
@@ -3385,6 +3419,8 @@ alternate_scroll(struct seat *seat, int amount, int button)
 static void
 mouse_scroll(struct seat *seat, int amount, enum wl_pointer_axis axis)
 {
+    if (seat->mouse_focus != NULL && pointer_on_tab_bar(seat, seat->mouse_focus))
+        return;
     struct terminal *term = seat->mouse_focus;
     xassert(term != NULL);
 
