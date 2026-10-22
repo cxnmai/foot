@@ -41,6 +41,7 @@
 #include "sixel.h"
 #include "slave.h"
 #include "spawn.h"
+#include "tabs.h"
 #include "url-mode.h"
 #include "util.h"
 #include "vt.h"
@@ -1454,9 +1455,13 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
     xassert(tll_length(term->wl->monitors) > 0);
     term->scale = tll_front(term->wl->monitors).scale;
 
-    /* Initialize the Wayland window backend */
-    if ((term->window = wayl_win_init(term, token)) == NULL)
+    /* Existing windows keep their surfaces and compositor state. */
+    term->window = window != NULL ? window : wayl_win_init(term, token);
+    if (term->window == NULL)
         goto err;
+    tll_push_back(term->window->tabs, term);
+    if (window != NULL)
+        term_update_scale(term);
 
     /* Load fonts */
     if (!term_font_dpi_changed(term, 0.))
@@ -1469,7 +1474,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
     /* Let the Wayland backend know we exist */
     tll_push_back(wayl->terms, term);
 
-    switch (conf->startup_mode) {
+    switch (window != NULL ? STARTUP_WINDOWED : conf->startup_mode) {
     case STARTUP_WINDOWED:
         break;
 
@@ -1485,6 +1490,10 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
     if (!initialize_render_workers(term))
         goto err;
 
+    if (window != NULL && window->is_configured) {
+        render_resize(term, window->content_width, window->content_height, RESIZE_FORCE);
+        term_window_configured(term);
+    }
     return term;
 
 err:
@@ -1510,9 +1519,10 @@ void
 term_window_configured(struct terminal *term)
 {
     /* Enable ptmx FDM callback */
-    if (!term->shutdown.in_progress) {
+    if (!term->shutdown.in_progress && !term->ptmx_registered) {
         xassert(term->window->is_configured);
-        fdm_add(term->fdm, term->ptmx, EPOLLIN, &fdm_ptmx, term);
+        term->ptmx_registered = fdm_add(
+            term->fdm, term->ptmx, EPOLLIN, &fdm_ptmx, term);
 
         const bool gamma_correct = wayl_do_linear_blending(term->wl, term->conf);
         LOG_INFO("gamma-correct blending: %s", gamma_correct ? "enabled" : "disabled");
@@ -1634,8 +1644,7 @@ fdm_shutdown(struct fdm *fdm, int fd, int events, void *data)
     /* Kill the event FD */
     fdm_del(term->fdm, fd);
 
-    wayl_win_destroy(term->window);
-    term->window = NULL;
+    tabs_detach(term);
 
     struct wayland *wayl = term->wl;
 
@@ -1732,7 +1741,9 @@ term_shutdown(struct terminal *term)
 
     del_utmp_record(term->conf, term->reaper, term->ptmx);
 
-    if (term->window != NULL && term->window->is_configured)
+    fdm_del(term->fdm, term->resize_timeout_fd);
+    term->resize_timeout_fd = -1;
+    if (term->ptmx_registered)
         fdm_del(term->fdm, term->ptmx);
     else
         close(term->ptmx);
@@ -1841,10 +1852,9 @@ term_destroy(struct terminal *term)
     if (term->shutdown.terminate_timeout_fd >= 0)
         fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
 
-    if (term->window != NULL) {
-        wayl_win_destroy(term->window);
-        term->window = NULL;
-    }
+    fdm_del(term->fdm, term->resize_timeout_fd);
+    term->resize_timeout_fd = -1;
+    tabs_detach(term);
 
     mtx_lock(&term->render.workers.lock);
     xassert(tll_length(term->render.workers.queue) == 0);
@@ -2040,6 +2050,10 @@ term_destroy(struct terminal *term)
         }
     }
 
+    if (term->owned_conf != NULL) {
+        config_free(term->owned_conf);
+        free(term->owned_conf);
+    }
     free(term);
 
 #if defined(__GLIBC__)

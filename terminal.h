@@ -403,6 +403,7 @@ struct terminal {
     struct fdm *fdm;
     struct reaper *reaper;
     const struct config *conf;
+    struct config *owned_conf;  /* Locally created tabs own their cloned config */
 
     void (*ascii_printer)(struct terminal *term, char32_t c);
     union {

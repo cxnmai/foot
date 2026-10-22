@@ -139,14 +139,6 @@ tabs_step(struct terminal *term, int direction)
                                        : (active + 1) % count);
 }
 
-static void
-free_tab_config(void *data, int exit_code)
-{
-    struct config *conf = data;
-    config_free(conf);
-    free(conf);
-}
-
 bool
 tabs_new(struct terminal *term)
 {
@@ -155,11 +147,13 @@ tabs_new(struct terminal *term)
     struct config *conf = config_clone(term->conf);
     struct terminal *next = term_init(
         conf, term->fdm, term->reaper, term->wl, term->foot_exe, term->cwd,
-        NULL, NULL, 0, NULL, NULL, &free_tab_config, conf, term->window);
+        NULL, NULL, 0, NULL, NULL, NULL, NULL, term->window);
     if (next == NULL) {
-        free_tab_config(conf, 0);
+        config_free(conf);
+        free(conf);
         return false;
     }
+    next->owned_conf = conf;
     tabs_activate(next);
     tabs_refresh_layout(next->window);
     return true;
@@ -184,6 +178,58 @@ tabs_refresh_layout(struct wl_window *win)
 {
     if (!win->closing && win->is_configured)
         tabs_resize(win, win->content_width, win->content_height, RESIZE_FORCE);
+}
+
+void
+tabs_close_window(struct wl_window *win)
+{
+    win->closing = true;
+    tll_foreach(win->tabs, it)
+        term_shutdown(it->item);
+}
+
+void
+tabs_detach(struct terminal *term)
+{
+    struct wl_window *win = term->window;
+    if (win == NULL)
+        return;
+    render_wait_for_preapply_damage(term);
+    tll_foreach(win->tabs, it) {
+        if (it->item == term) {
+            tll_remove(win->tabs, it);
+            break;
+        }
+    }
+    if (tll_length(win->tabs) == 0) {
+        win->closing = true;
+        wayl_win_destroy(win);
+    } else {
+        if (win->term == term) {
+            struct terminal *next = tll_front(win->tabs);
+            tll_foreach(win->tabs, it) {
+                if (!it->item->shutdown.in_progress) {
+                    next = it->item;
+                    break;
+                }
+            }
+            tabs_activate(next);
+        }
+        tabs_refresh_layout(win);
+    }
+    term->window = NULL;
+    tll_foreach(term->wl->seats, it) {
+        if (it->item.kbd_focus == term)
+            it->item.kbd_focus = NULL;
+        if (it->item.mouse_focus == term)
+            it->item.mouse_focus = NULL;
+        if (it->item.ime_focus == term) {
+            ime_disable(&it->item);
+            ime_reset_pending(&it->item);
+            ime_reset_preedit(&it->item);
+            it->item.ime_focus = NULL;
+        }
+    }
 }
 
 void
