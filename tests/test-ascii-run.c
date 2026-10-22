@@ -90,12 +90,104 @@ check_run(struct fixture *batch, struct fixture *reference,
     same(batch, reference);
 }
 
+static void
+test_input_boundaries(void)
+{
+    struct fixture batch, reference;
+    for (unsigned byte = 0; byte <= 255; byte++) {
+        for (size_t pos = 0; pos < 4; pos++) {
+            uint8_t data[] = {' ', '~', 'A', 'z', '0', '!'};
+            data[pos] = byte;
+            for (size_t len = 0; len <= sizeof(data); len++) {
+                for (int col = COLS - 4; col < COLS; col++) {
+                    init(&batch, COLS, col);
+                    init(&reference, COLS, col);
+                    size_t n = 0;
+                    while (n < len && n < (size_t)(COLS - col) &&
+                           data[n] >= 0x20 && data[n] <= 0x7e)
+                        n++;
+                    check_run(&batch, &reference, data, len, n < 2 ? 0 : n);
+                }
+            }
+        }
+    }
+    init(&batch, COLS, 0);
+    init(&reference, COLS, 0);
+    check_run(&batch, &reference, NULL, 0, 0);
+}
+
+static void
+check_stream(struct fixture *batch, struct fixture *reference,
+             const uint8_t *data, size_t len)
+{
+    for (size_t i = 0; i < len;) {
+        size_t n = term_print_ascii_run(&batch->term, data + i, len - i);
+        assert(n <= len - i);
+        if (n == 0) {
+            scalar(&batch->term, data[i]);
+            n = 1;
+        }
+        for (size_t j = 0; j < n; j++)
+            scalar(&reference->term, data[i + j]);
+        same(batch, reference);
+        i += n;
+    }
+}
+
+static uint32_t
+random_u32(void)
+{
+    static uint32_t state = 0x51a5c11;
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return state;
+}
+
+static void
+test_random_ascii_and_margins(void)
+{
+    struct fixture batch, reference;
+    for (int iteration = 0; iteration < 2000; iteration++) {
+        const int cols = 1 + random_u32() % COLS;
+        const int col = random_u32() % cols;
+        init(&batch, cols, col);
+        init(&reference, cols, col);
+        struct attributes attrs = {
+            .bold = random_u32() & 1, .dim = random_u32() & 1,
+            .italic = random_u32() & 1, .underline = random_u32() & 1,
+            .strikethrough = random_u32() & 1, .blink = random_u32() & 1,
+            .conceal = random_u32() & 1, .reverse = random_u32() & 1,
+            .fg = random_u32() & 0xffffff, .fg_src = random_u32() % 4,
+            .bg = random_u32() & 0xffffff, .bg_src = random_u32() % 4,
+            .clean = random_u32() & 1, .selected = random_u32() & 1,
+            .confined = random_u32() & 1, .url = random_u32() & 1,
+        };
+        batch.term.vt.attrs = reference.term.vt.attrs = attrs;
+        batch.term.auto_margin = reference.term.auto_margin = random_u32() & 1;
+        batch.term.grid->cursor.lcf = reference.term.grid->cursor.lcf =
+            col == cols - 1 && (random_u32() & 1);
+        uint8_t data[2 * COLS];
+        for (size_t i = 0; i < sizeof(data); i++)
+            data[i] = 0x20 + random_u32() % 95;
+        check_stream(&batch, &reference, data, 2 * cols);
+    }
+    /* Exact right-margin fill, pending wrap, and disabled auto-wrap. */
+    for (int wrap = 0; wrap <= 1; wrap++) {
+        init(&batch, COLS, COLS - 2);
+        init(&reference, COLS, COLS - 2);
+        batch.term.auto_margin = reference.term.auto_margin = wrap;
+        check_run(&batch, &reference, (const uint8_t *)"abcd", 4, 2);
+        assert(batch.term.grid->cursor.lcf);
+        check_run(&batch, &reference, (const uint8_t *)"cd", 2, 0);
+        check_stream(&batch, &reference, (const uint8_t *)"cd", 2);
+    }
+}
+
 int
 main(void)
 {
-    struct fixture batch, reference;
-    init(&batch, COLS, 0);
-    init(&reference, COLS, 0);
-    check_run(&batch, &reference, (const uint8_t *)"hello", 5, 5);
+    test_input_boundaries();
+    test_random_ascii_and_margins();
     return 0;
 }
