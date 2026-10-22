@@ -808,7 +808,7 @@ urls_reset(struct terminal *term)
      */
     term->render.last_cursor.row = NULL;
 
-    if (term->window != NULL) {
+    if (term->window != NULL && term->window->term == term) {
         tll_foreach(term->window->urls, it) {
             wayl_win_subsurface_destroy(&it->item.surf);
             tll_remove(term->window->urls, it);

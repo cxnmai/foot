@@ -44,6 +44,7 @@
 #include "srgb.h"
 #include "url-mode.h"
 #include "util.h"
+#include "tabs.h"
 #include "xmalloc.h"
 
 #define TIME_SCROLL_DAMAGE 0
@@ -1972,6 +1973,8 @@ render_overlay_single_pixel(struct terminal *term, enum overlay_style style,
 void
 render_overlay(struct terminal *term)
 {
+    if (!tabs_is_active(term))
+        return;
     struct wayl_sub_surface *overlay = &term->window->overlay;
     const bool unicode_mode_active = term->unicode_mode.active;
 
@@ -3324,7 +3327,7 @@ dirty_cursor(struct terminal *term)
 static void
 grid_render(struct terminal *term)
 {
-    if (term->shutdown.in_progress)
+    if (!tabs_is_active(term))
         return;
 
     struct timespec start_time;
@@ -3677,7 +3680,7 @@ grid_render(struct terminal *term)
 
     xassert(term->window->frame_callback == NULL);
     term->window->frame_callback = wl_surface_frame(term->window->surface.surf);
-    wl_callback_add_listener(term->window->frame_callback, &frame_listener, term);
+    wl_callback_add_listener(term->window->frame_callback, &frame_listener, term->window);
 
     wayl_win_scale(term->window, buf);
 
@@ -4295,6 +4298,8 @@ render_urls(struct terminal *term)
 static void
 render_update_title(struct terminal *term)
 {
+    if (!tabs_is_active(term))
+        return;
     static const size_t max_len = 2048;
 
     const char *title = term->window_title != NULL ? term->window_title : "foot";
@@ -4312,11 +4317,14 @@ render_update_title(struct terminal *term)
 static void
 frame_callback(void *data, struct wl_callback *wl_callback, uint32_t callback_data)
 {
-    struct terminal *term = data;
+    struct wl_window *win = data;
+    struct terminal *term = win->term;
 
-    xassert(term->window->frame_callback == wl_callback);
+    xassert(win->frame_callback == wl_callback);
     wl_callback_destroy(wl_callback);
-    term->window->frame_callback = NULL;
+    win->frame_callback = NULL;
+    if (!tabs_is_active(term))
+        return;
 
     bool grid = term->render.pending.grid;
     bool csd = term->render.pending.csd;
@@ -4958,7 +4966,7 @@ damage_view:
         term->stashed_height = term->height;
     }
 
-    {
+    if (tabs_is_active(term)) {
         const bool title_shown = wayl_win_csd_titlebar_visible(term->window);
         const bool border_shown = wayl_win_csd_borders_visible(term->window);
 
@@ -5151,7 +5159,7 @@ fdm_hook_refresh_pending_terminals(struct fdm *fdm, void *data)
     tll_foreach(renderer->wayl->terms, it) {
         struct terminal *term = it->item;
 
-        if (unlikely(term->shutdown.in_progress || !term->window->is_configured))
+        if (unlikely(!tabs_is_active(term) || !term->window->is_configured))
             continue;
 
         bool grid = term->render.refresh.grid;
@@ -5219,6 +5227,11 @@ fdm_hook_refresh_pending_terminals(struct fdm *fdm, void *data)
 void
 render_refresh_title(struct terminal *term)
 {
+    if (term->window == NULL)
+        return;
+    render_refresh(term->window->term);
+    if (!tabs_is_active(term))
+        return;
     struct timespec now;
     if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
         return;
@@ -5243,6 +5256,8 @@ render_refresh_title(struct terminal *term)
 void
 render_refresh_app_id(struct terminal *term)
 {
+    if (!tabs_is_active(term))
+        return;
     struct timespec now;
     if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
         return;
@@ -5269,6 +5284,8 @@ render_refresh_app_id(struct terminal *term)
 void
 render_refresh_icon(struct terminal *term)
 {
+    if (!tabs_is_active(term))
+        return;
     if (term->wl->toplevel_icon_manager == NULL) {
         LOG_DBG("compositor does not implement xdg-toplevel-icon: "
                 "ignoring request to refresh window icon");

@@ -296,6 +296,7 @@ fdm_ptmx(struct fdm *fdm, int fd, int events, void *data)
 
         xassert(term->interactive_resizing.grid == NULL);
         vt_from_slave(term, buf, count);
+        tabs_mark_activity(term, false);
     }
 
     if (!term->render.app_sync_updates.enabled) {
@@ -428,6 +429,8 @@ fdm_flash(struct fdm *fdm, int fd, int events, void *data)
             (unsigned long long)expiration_count);
 
     term->flash.active = false;
+    if (!tabs_is_active(term))
+        return true;
     render_overlay(term);
 
     // since the overlay surface is synced with the main window surface, we have
@@ -3788,6 +3791,8 @@ term_bell(struct terminal *term)
 
     if (!term->bell_action_enabled)
         return;
+
+    tabs_mark_activity(term, true);
 
     if (term->conf->bell.urgent && !term->kbd_focus) {
         if (!wayl_win_set_urgent(term->window)) {
