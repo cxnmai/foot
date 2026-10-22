@@ -11,7 +11,7 @@
 #include "wayland.h"
 
 bool
- tabs_is_active(const struct terminal *term)
+tabs_is_active(const struct terminal *term)
 {
     return term->window != NULL && term->window->term == term &&
            !term->window->closing && !term->shutdown.in_progress;
@@ -105,5 +105,97 @@ tabs_activate(struct terminal *next)
     render_refresh_csd(next);
     render_refresh_search(next);
     render_refresh_urls(next);
+    term_disable_app_sync_updates(next);
     render_refresh(next);
+}
+
+void
+tabs_select(struct terminal *term, unsigned index)
+{
+    unsigned i = 0;
+    tll_foreach(term->window->tabs, it) {
+        if (it->item->shutdown.in_progress)
+            continue;
+        if (i++ == index) {
+            tabs_activate(it->item);
+            return;
+        }
+    }
+}
+
+void
+tabs_step(struct terminal *term, int direction)
+{
+    unsigned count = 0, active = 0;
+    tll_foreach(term->window->tabs, it) {
+        if (it->item->shutdown.in_progress)
+            continue;
+        if (it->item == term)
+            active = count;
+        count++;
+    }
+    if (count > 0)
+        tabs_select(term, direction < 0 ? (active + count - 1) % count
+                                       : (active + 1) % count);
+}
+
+static void
+free_tab_config(void *data, int exit_code)
+{
+    struct config *conf = data;
+    config_free(conf);
+    free(conf);
+}
+
+bool
+tabs_new(struct terminal *term)
+{
+    if (!term->conf->tab_bar.enabled || !tabs_is_active(term))
+        return false;
+    struct config *conf = config_clone(term->conf);
+    struct terminal *next = term_init(
+        conf, term->fdm, term->reaper, term->wl, term->foot_exe, term->cwd,
+        NULL, NULL, 0, NULL, NULL, &free_tab_config, conf, term->window);
+    if (next == NULL) {
+        free_tab_config(conf, 0);
+        return false;
+    }
+    tabs_activate(next);
+    tabs_refresh_layout(next->window);
+    return true;
+}
+
+bool
+tabs_resize(struct wl_window *win, int width, int height, uint8_t opts)
+{
+    bool resized = render_resize(win->term, width, height, opts);
+    win->content_width = roundf(win->term->width / win->term->scale);
+    win->content_height = roundf(win->term->height / win->term->scale);
+    tll_foreach(win->tabs, it) {
+        if (it->item != win->term)
+            render_resize(it->item, win->content_width, win->content_height,
+                          opts & ~RESIZE_KEEP_GRID);
+    }
+    return resized;
+}
+
+void
+tabs_refresh_layout(struct wl_window *win)
+{
+    if (!win->closing && win->is_configured)
+        tabs_resize(win, win->content_width, win->content_height, RESIZE_FORCE);
+}
+
+void
+tabs_mark_activity(struct terminal *term, bool bell)
+{
+    if (term->window == NULL || term->window->term == term)
+        return;
+    bool changed = bell ? !term->tab_bell : !term->tab_activity;
+    if (bell)
+        term->tab_bell = true;
+    else
+        term->tab_activity = true;
+    if (changed)
+        render_refresh(term->window->term);
 }

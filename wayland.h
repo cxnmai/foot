@@ -371,6 +371,8 @@ struct wl_window {
     struct terminal *term;  /* Active session; window owns tab membership */
     tll(struct terminal *) tabs;
     bool closing;
+    int content_width;   /* Logical content size, excluding decorations */
+    int content_height;
     struct wayl_surface surface;
     struct xdg_surface *xdg_surface;
     struct xdg_toplevel *xdg_toplevel;
