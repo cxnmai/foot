@@ -268,3 +268,96 @@ const TestABI = struct {
         glyphs += 1;
     }
 };
+
+test "tab-bar height reserves one content row and supports prospective sizes" {
+    TestABI.reset();
+    const t: *Terminal = @ptrFromInt(4096);
+    try std.testing.expectEqual(@as(i32, 16), tab_bar_height(t));
+    try std.testing.expectEqual(@as(i32, 0), tab_bar_height_for_size(t, 31));
+    try std.testing.expectEqual(@as(i32, 16), tab_bar_height_for_size(t, 32));
+    TestABI.configuration.height = 0;
+    try std.testing.expectEqual(@as(i32, 0), tab_bar_height(t));
+    try std.testing.expectEqual(@as(i32, 16), tab_bar_height_for_size(t, 32));
+    TestABI.configuration.min_tabs = 4;
+    try std.testing.expectEqual(@as(i32, 0), tab_bar_height_for_size(t, 64));
+    TestABI.configuration.min_tabs = 1;
+    TestABI.configuration.enabled = false;
+    try std.testing.expectEqual(@as(i32, 0), tab_bar_height_for_size(t, 64));
+    try std.testing.expectEqual(@as(i32, 0), tab_bar_height(null));
+}
+
+test "tab-bar viewport retains active whole tab" {
+    const Widths = struct {
+        fn at(values: []const i32, index: usize) i32 { return values[index]; }
+    };
+    const widths = [_]i32{ 10, 10, 10, 10 };
+    try std.testing.expectEqual(@as(usize, 1), firstVisible(@as([]const i32, &widths), 2, 25, Widths.at));
+    try std.testing.expectEqual(@as(usize, 2), firstVisible(@as([]const i32, &widths), 3, 25, Widths.at));
+    try std.testing.expectEqual(@as(usize, 0), firstVisible(@as([]const i32, &widths), 3, 40, Widths.at));
+    TestABI.reset();
+    TestABI.configuration.width = 8;
+    const t: *Terminal = @ptrFromInt(4096);
+    try std.testing.expectEqual(TestABI.foot_tab_active(@ptrFromInt(256)), tab_bar_hit_test(t, 0, 0));
+    try std.testing.expect(tab_bar_hit_test(t, 8, 0) == null);
+    try std.testing.expect(tab_bar_hit_test(t, -1, 0) == null);
+    try std.testing.expect(tab_bar_hit_test(t, 0, 16) == null);
+    TestABI.configuration.position = 1;
+    try std.testing.expectEqual(@as(i32, 48), tab_bar_y(t));
+    try std.testing.expect(tab_bar_hit_test(t, 0, 47) == null);
+    try std.testing.expectEqual(TestABI.foot_tab_active(@ptrFromInt(256)), tab_bar_hit_test(t, 0, 48));
+    try std.testing.expect(tab_bar_hit_test(t, 0, 64) == null);
+}
+
+test "tab-bar separator and trailing unused area are not tab hits" {
+    TestABI.reset();
+    TestABI.configuration.width = 80;
+    TestABI.configuration.style = 1;
+    TestABI.configuration.padding = 0;
+    TestABI.configuration.title_template = "x";
+    TestABI.configuration.separator = "|";
+    const t: *Terminal = @ptrFromInt(4096);
+    try std.testing.expectEqual(@as(?*Terminal, t), tab_bar_hit_test(t, 0, 0));
+    try std.testing.expect(tab_bar_hit_test(t, 8, 0) == null);
+    try std.testing.expectEqual(TestABI.foot_tab_active(@ptrFromInt(256)), tab_bar_hit_test(t, 16, 0));
+    try std.testing.expect(tab_bar_hit_test(t, 24, 0) == null);
+    try std.testing.expect(tab_bar_hit_test(t, 40, 0) == null);
+}
+
+test "tab-bar Kitty fade has exact quarter steps and mirrored trailing edge" {
+    try std.testing.expectEqual(@as(u32, 0x3f3f3f), fadeColor(0, 0xffffff, 1));
+    try std.testing.expectEqual(@as(u32, 0x7f7f7f), fadeColor(0, 0xffffff, 2));
+    try std.testing.expectEqual(@as(u32, 0xbfbfbf), fadeColor(0, 0xffffff, 3));
+    try std.testing.expectEqual(@as(u32, 0xffffff), fadeColor(0, 0xffffff, 4));
+    try std.testing.expectEqual(@as(u32, 0x804020), fadeColor(0x804020, 0x804020, 1));
+}
+
+test "tab-bar painting stays clipped for both styles and positions at narrow widths" {
+    const t: *Terminal = @ptrFromInt(4096);
+    const pix: *anyopaque = @ptrFromInt(8192);
+    for (0..2) |style| {
+        for (0..2) |position| {
+            for (1..201) |width| {
+                TestABI.reset();
+                TestABI.configuration.style = @intCast(style);
+                TestABI.configuration.position = @intCast(position);
+                TestABI.configuration.width = @intCast(width);
+                TestABI.configuration.padding = 32;
+                TestABI.configuration.separator = " |界\u{301}";
+                tab_bar_render(t, pix, false);
+                try std.testing.expect(TestABI.fills > 0);
+                if (width >= 8) {
+                    var layout = Layout.init(t, TestABI.configuration).?;
+                    var active_found = false;
+                    while (layout.next()) |tab| {
+                        if (tab.tab == layout.active) active_found = true;
+                        try std.testing.expectEqual(@as(?*Terminal, tab.tab), tab_bar_hit_test(t, tab.x, barY(layout.o)));
+                    }
+                    try std.testing.expect(active_found);
+                }
+            }
+        }
+    }
+    TestABI.reset();
+    tab_bar_render(t, pix, true);
+    try std.testing.expect(TestABI.glyphs > 0);
+}
