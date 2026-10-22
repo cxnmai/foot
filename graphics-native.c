@@ -45,7 +45,9 @@ kg_native_reply(struct terminal *term, const uint8_t *data, size_t size)
 void
 kg_native_damage(struct terminal *term)
 {
-    term_damage_view(term);
+    /* A burst may move the same image thousands of times before a frame.
+     * Invalidate underlying text once, when that frame is actually painted. */
+    term->render.graphics_damage = true;
     render_refresh(term);
     tabs_mark_activity(term, false);
 }

@@ -673,6 +673,7 @@ struct terminal {
             bool urls;
         } pending;
 
+        bool graphics_damage;  /* Invalidate text beneath old/new placements once per frame */
         bool margins;  /* Someone explicitly requested a refresh of the margins */
         bool urgency;  /* Signal 'urgency' (paint borders red) */
 

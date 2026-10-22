@@ -3380,6 +3380,11 @@ grid_render(struct terminal *term)
     xassert(term->width > 0);
     xassert(term->height > 0);
 
+    if (term->render.graphics_damage) {
+        term_damage_view(term);
+        term->render.graphics_damage = false;
+    }
+
     struct buffer_chain *chain = term->render.chains.grid;
     struct buffer *buf = shm_get_buffer(chain, term->width, term->height);
 
