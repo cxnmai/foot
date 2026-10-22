@@ -32,6 +32,12 @@ const Engine = struct {
             self.pending_cmd = null;
         }
     }
+    fn clear(self: *Engine) void {
+        self.cancel();
+        for (0..max_images) |slot| self.removeImage(slot);
+        self.packet_len = 0;
+        self.packet_overflow = false;
+    }
     fn damage(self: *Engine) void {
         c.kg_native_damage(self.term);
     }
@@ -97,15 +103,15 @@ export fn kg_new(term: ?*c.struct_terminal) ?*c.struct_kg_engine {
 }
 export fn kg_reset(ptr: ?*c.struct_kg_engine) void {
     const self = engine(ptr) orelse return;
-    self.cancel();
-    for (0..max_images) |slot| self.removeImage(slot);
-    self.packet_len = 0;
-    self.packet_overflow = false;
+    self.clear();
     self.damage();
 }
 export fn kg_free(ptr: ?*c.struct_kg_engine) void {
     const self = engine(ptr) orelse return;
-    kg_reset(ptr);
+    // Teardown only: no damage pass. The terminal's grids may already be
+    // freed at this point (term_destroy() runs kg_free after grid_free()),
+    // and kg_native_damage() would write through them.
+    self.clear();
     self.placements.deinit(allocator);
     allocator.destroy(self);
 }
