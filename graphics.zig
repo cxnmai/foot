@@ -546,3 +546,83 @@ export fn kg_scroll(ptr: ?*c.struct_kg_engine, screen: c_int, top: c_int, bottom
     }
     if (changed) self.damage();
 }
+
+test "graphics upload bulk bytes preserve every input split and scalar mixing" {
+    const packet = "f=32,s=1,v=1,i=7,q=2;AQIDBA==";
+    for (0..2) |mode| {
+        for (0..packet.len + 1) |split| {
+            const ptr = kg_new(null).?;
+            defer kg_free(ptr);
+            kg_begin(ptr);
+            kg_put_bytes(ptr, packet.ptr, split);
+            if (mode == 0) kg_put_bytes(ptr, packet[split..].ptr, packet.len - split) else for (packet[split..]) |byte| kg_put(ptr, byte);
+            kg_put_bytes(ptr, packet.ptr, 0);
+            kg_end(ptr);
+            const self = engine(ptr).?;
+            try std.testing.expectEqual(@as(usize, 4), self.bytes);
+            try std.testing.expectEqual(@as(u32, 7), self.images[0].?.id);
+            try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4 }, self.images[0].?.rgba);
+        }
+    }
+    kg_put_bytes(null, packet.ptr, packet.len);
+}
+
+test "graphics upload bulk bytes bound exact capacity and retain overflow until end" {
+    const ptr = kg_new(null).?;
+    defer kg_free(ptr);
+    const self = engine(ptr).?;
+    const data: [self.packet.len + 1]u8 = @splat('A');
+    kg_begin(ptr);
+    kg_put_bytes(ptr, &data, self.packet.len - 1);
+    kg_put(ptr, 'B');
+    kg_put_bytes(ptr, &data, 0);
+    try std.testing.expect(!self.packet_overflow);
+    kg_put_bytes(ptr, &data, data.len);
+    try std.testing.expect(self.packet_overflow);
+    try std.testing.expectEqual(self.packet.len, self.packet_len);
+    try std.testing.expectEqual(@as(u8, 'B'), self.packet[self.packet.len - 1]);
+    kg_end(ptr);
+    try std.testing.expectEqual(@as(usize, 0), self.packet_len);
+    try std.testing.expect(!self.packet_overflow);
+    try std.testing.expectEqual(@as(usize, 0), self.bytes);
+}
+
+test "graphics upload chunks cancel on abort overflow and invalid packets then recover" {
+    const ptr = kg_new(null).?;
+    defer kg_free(ptr);
+    const self = engine(ptr).?;
+    const first = "f=32,s=1,v=1,i=7,q=2,m=1;AQID";
+    const last = "m=0,q=2;BA==";
+    for (0..4) |scenario| {
+        kg_begin(ptr);
+        kg_put_bytes(ptr, first.ptr, first.len);
+        kg_end(ptr);
+        try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3 }, self.pending_data.items);
+        if (scenario == 0) {
+            kg_abort(ptr);
+        } else if (scenario < 3) {
+            const invalid = if (scenario == 1) "m=0,q=2;!!!=" else "m=0,m=1;BA==";
+            kg_begin(ptr);
+            kg_put_bytes(ptr, invalid.ptr, invalid.len);
+            kg_end(ptr);
+        } else {
+            const large: [self.packet.len + 1]u8 = @splat('A');
+            kg_begin(ptr);
+            kg_put_bytes(ptr, &large, large.len);
+            kg_end(ptr);
+        }
+        try std.testing.expect(self.pending_cmd == null);
+        try std.testing.expectEqual(@as(usize, 0), self.pending_data.items.len);
+        kg_begin(ptr);
+        kg_put_bytes(ptr, last.ptr, last.len);
+        kg_end(ptr);
+        try std.testing.expectEqual(@as(usize, 0), self.bytes);
+    }
+    kg_begin(ptr);
+    kg_put_bytes(ptr, first.ptr, first.len);
+    kg_end(ptr);
+    kg_begin(ptr);
+    kg_put_bytes(ptr, last.ptr, last.len);
+    kg_end(ptr);
+    try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4 }, self.images[0].?.rgba);
+}
