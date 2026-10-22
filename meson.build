@@ -3,6 +3,7 @@ project('foot', 'c',
         license: 'MIT',
         meson_version: '>=0.59.0',
         default_options: [
+          'buildtype=release',
           'c_std=c11',
           'warning_level=1',
           'werror=true',
