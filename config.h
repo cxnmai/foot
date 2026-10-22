@@ -227,6 +227,9 @@ enum underline_style {
     UNDERLINE_DASHED,
 };
 
+enum tab_bar_style { TAB_BAR_FADE, TAB_BAR_SEPARATOR };
+enum tab_bar_position { TAB_BAR_TOP, TAB_BAR_BOTTOM };
+
 struct config {
     char *conf_path;
     char *term;
@@ -237,6 +240,25 @@ struct config {
     char32_t *word_delimiters;
     bool login_shell;
     bool locked_title;
+
+    struct {
+        bool enabled;
+        uint32_t min_tabs;
+        enum tab_bar_style style;
+        enum tab_bar_position position;
+        uint32_t background;
+        uint32_t active_foreground;
+        uint32_t active_background;
+        uint32_t inactive_foreground;
+        uint32_t inactive_background;
+        unsigned active_font_style;   /* 0 normal, 1 bold, 2 italic, 3 bold-italic */
+        unsigned inactive_font_style;
+        uint32_t max_title_length;
+        uint32_t padding;
+        char *title_template;
+        char *active_title_template;
+        char *separator;
+    } tab_bar;
 
     struct {
         enum conf_size_type type;

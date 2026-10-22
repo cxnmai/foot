@@ -3640,6 +3640,24 @@ config_load(struct config *conf, const char *conf_path,
             .alternate_scroll_mode = true,
             .selection_override_modifiers = tll_init(),
         },
+        .tab_bar = {
+            .enabled = true,
+            .min_tabs = 2,
+            .style = TAB_BAR_FADE,
+            .position = TAB_BAR_BOTTOM,
+            .background = 0x1f1f28,
+            .active_foreground = 0x1f1f28,
+            .active_background = 0x76946a,
+            .inactive_foreground = 0x717c7c,
+            .inactive_background = 0x2a2a37,
+            .active_font_style = 3,
+            .inactive_font_style = 0,
+            .max_title_length = 32,
+            .padding = 1,
+            .title_template = xstrdup("{title}"),
+            .active_title_template = xstrdup("{title}"),
+            .separator = xstrdup(" │ "),
+        },
         .csd = {
             .preferred = CONF_CSD_PREFER_SERVER,
             .font = {0},
@@ -3956,6 +3974,9 @@ config_clone(const struct config *old)
     conf->term = xstrdup(old->term);
     conf->shell = xstrdup(old->shell);
     conf->title = xstrdup(old->title);
+    conf->tab_bar.title_template = xstrdup(old->tab_bar.title_template);
+    conf->tab_bar.active_title_template = xstrdup(old->tab_bar.active_title_template);
+    conf->tab_bar.separator = xstrdup(old->tab_bar.separator);
     conf->app_id = xstrdup(old->app_id);
     conf->toplevel_tag = xstrdup(old->toplevel_tag);
     conf->word_delimiters = xc32dup(old->word_delimiters);
@@ -4057,6 +4078,9 @@ config_free(struct config *conf)
     free(conf->term);
     free(conf->shell);
     free(conf->title);
+    free(conf->tab_bar.title_template);
+    free(conf->tab_bar.active_title_template);
+    free(conf->tab_bar.separator);
     free(conf->app_id);
     free(conf->toplevel_tag);
     free(conf->word_delimiters);
