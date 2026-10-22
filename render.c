@@ -3597,7 +3597,16 @@ grid_render(struct terminal *term)
         kg_render(term->graphics, term, buf->pix[0], false, wayl_do_linear_blending(term->wl, term->conf));
 
 
-    if (term->render.workers.count > 0) {
+    /* Waking a CPU-sized pool costs more than painting a small text update.
+     * Keep workers for larger dirty grids, not cursor blinks or small panes. */
+    size_t dirty_cells = 0;
+    for (int r = 0; r < term->rows && dirty_cells <= 4096; r++) {
+        if (grid_row_in_view(term->grid, r)->dirty)
+            dirty_cells += term->cols;
+    }
+    const bool use_workers = term->render.workers.count > 0 && dirty_cells > 4096;
+
+    if (use_workers) {
         mtx_lock(&term->render.workers.lock);
         term->render.workers.buf = buf;
         for (size_t i = 0; i < term->render.workers.count; i++)
@@ -3614,7 +3623,7 @@ grid_render(struct terminal *term)
 
         row->dirty = false;
 
-        if (term->render.workers.count > 0)
+        if (use_workers)
             tll_push_back(term->render.workers.queue, r);
 
         else {
@@ -3625,7 +3634,7 @@ grid_render(struct terminal *term)
     }
 
     /* Signal workers the frame is done */
-    if (term->render.workers.count > 0) {
+    if (use_workers) {
         for (size_t i = 0; i < term->render.workers.count; i++)
             tll_push_back(term->render.workers.queue, -1);
         mtx_unlock(&term->render.workers.lock);
@@ -3635,8 +3644,10 @@ grid_render(struct terminal *term)
         term->render.workers.buf = NULL;
     }
 
-    for (size_t i = 0; i < term->render.workers.count; i++)
-        pixman_region32_union(&damage, &damage, &buf->dirty[i + 1]);
+    if (use_workers) {
+        for (size_t i = 0; i < term->render.workers.count; i++)
+            pixman_region32_union(&damage, &damage, &buf->dirty[i + 1]);
+    }
 
     int tab_height = tab_bar_height(term);
     if (tab_height > 0) {
