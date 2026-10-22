@@ -912,6 +912,96 @@ test_section_csd(void)
     config_free(&conf);
 }
 
+static void
+test_section_tab_bar(void)
+{
+    struct config conf = {0};
+    struct context ctx = {
+        .conf = &conf, .section = "tab-bar", .path = "unittest"};
+
+    test_invalid_key(&ctx, &parse_section_tab_bar, "invalid-key");
+    test_boolean(&ctx, &parse_section_tab_bar, "enabled", &conf.tab_bar.enabled);
+    test_enum(&ctx, &parse_section_tab_bar, "position", 2,
+              (const char *[]){"top", "bottom"},
+              (int []){TAB_BAR_TOP, TAB_BAR_BOTTOM}, (int *)&conf.tab_bar.position);
+    test_enum(&ctx, &parse_section_tab_bar, "style", 2,
+              (const char *[]){"fade", "separator"},
+              (int []){TAB_BAR_FADE, TAB_BAR_SEPARATOR}, (int *)&conf.tab_bar.style);
+    test_color(&ctx, &parse_section_tab_bar, "background", false,
+               &conf.tab_bar.background);
+    test_color(&ctx, &parse_section_tab_bar, "active-foreground", false,
+               &conf.tab_bar.active_foreground);
+    test_color(&ctx, &parse_section_tab_bar, "active-background", false,
+               &conf.tab_bar.active_background);
+    test_color(&ctx, &parse_section_tab_bar, "inactive-foreground", false,
+               &conf.tab_bar.inactive_foreground);
+    test_color(&ctx, &parse_section_tab_bar, "inactive-background", false,
+               &conf.tab_bar.inactive_background);
+    test_string(&ctx, &parse_section_tab_bar, "separator", &conf.tab_bar.separator);
+    ctx.key = "separator";
+    ctx.value = "' │ '";
+    xassert(parse_section_tab_bar(&ctx));
+    xassert(streq(conf.tab_bar.separator, " │ "));
+
+    const char *font_keys[] = {"active-font-style", "inactive-font-style"};
+    unsigned *font_fields[] = {
+        &conf.tab_bar.active_font_style, &conf.tab_bar.inactive_font_style};
+    const char *styles[] = {"normal", "bold", "italic", "bold-italic"};
+    for (size_t i = 0; i < ALEN(font_keys); i++) {
+        ctx.key = font_keys[i];
+        for (size_t j = 0; j < ALEN(styles); j++) {
+            ctx.value = styles[j];
+            xassert(parse_section_tab_bar(&ctx));
+            xassert(*font_fields[i] == j);
+        }
+        ctx.value = "bold italic";
+        xassert(!parse_section_tab_bar(&ctx));
+        xassert(*font_fields[i] == 3);
+    }
+
+    const char *number_keys[] = {"min-tabs", "max-title-length", "padding"};
+    uint32_t *number_fields[] = {
+        &conf.tab_bar.min_tabs, &conf.tab_bar.max_title_length, &conf.tab_bar.padding};
+    for (size_t i = 0; i < ALEN(number_keys); i++) {
+        ctx.key = number_keys[i];
+        const char *values[] = {i == 2 ? "0" : "1", i == 2 ? "32" : "1024",
+                               i == 2 ? "33" : "1025", "-1", "4294967296", "abc"};
+        for (size_t j = 0; j < ALEN(values); j++) {
+            ctx.value = values[j];
+            uint32_t previous = *number_fields[i];
+            xassert(parse_section_tab_bar(&ctx) == (j < 2));
+            xassert(*number_fields[i] == (j < 2 ? strtoul(values[j], NULL, 10) : previous));
+        }
+        if (i != 2) {
+            ctx.value = "0";
+            xassert(!parse_section_tab_bar(&ctx));
+            xassert(*number_fields[i] == 1024);
+        }
+    }
+
+    const char *template_keys[] = {"title-template", "active-title-template"};
+    char **template_fields[] = {
+        &conf.tab_bar.title_template, &conf.tab_bar.active_title_template};
+    const char *invalid[] = {"{unknown}", "{", "}", "{}", "{{title}}",
+                             "{title", "title}", "{title}}", "{title}{bell"};
+    for (size_t i = 0; i < ALEN(template_keys); i++) {
+        ctx.key = template_keys[i];
+        ctx.value = "'{index}: {title}{activity}{bell}'";
+        xassert(parse_section_tab_bar(&ctx));
+        xassert(streq(*template_fields[i], "{index}: {title}{activity}{bell}"));
+        char *previous = *template_fields[i];
+        for (size_t j = 0; j < ALEN(invalid); j++) {
+            ctx.value = invalid[j];
+            xassert(!parse_section_tab_bar(&ctx));
+            xassert(*template_fields[i] == previous);
+        }
+        ctx.value = "''";
+        xassert(parse_section_tab_bar(&ctx));
+        xassert(streq(*template_fields[i], ""));
+    }
+    config_free(&conf);
+}
+
 static bool
 have_modifier(const config_modifier_list_t *mods, const char *mod)
 {
@@ -1542,6 +1632,7 @@ main(int argc, const char *const *argv)
     test_section_colors_dark();
     test_section_colors_light();
     test_section_csd();
+    test_section_tab_bar();
     test_section_key_bindings();
     test_section_key_bindings_collisions();
     test_section_search_bindings();
