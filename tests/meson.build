@@ -34,3 +34,22 @@ test('zig-graphics-render', zig,
          '-Mgraphics_abi=' + graphics_abi.full_path()],
   depends: graphics_object,
   timeout: 120)
+
+# terminal.o pulls the application's dependency graph. Link production code,
+# without main.c, rather than replacing terminal/grid behavior with test stubs.
+ascii_run_test = executable(
+  'test-ascii-run', 'test-ascii-run.c',
+  '../async.c', '../box-drawing.c', '../config.c', '../commands.c',
+  '../extract.c', '../fdm.c', '../foot-features.c', '../ime.c', '../input.c',
+  '../key-binding.c', '../notify.c', '../quirks.c', '../reaper.c', '../render.c',
+  '../tab-bridge.c', '../tab-draw.c', '../graphics-native.c', '../graphics-paint.c',
+  '../search.c', '../server.c', '../shm.c', '../slave.c', '../spawn.c',
+  '../tokenize.c', '../unicode-mode.c', '../url-mode.c', '../user-notification.c',
+  '../wayland.c', tabs_object, graphics_object,
+  srgb_funcs, wl_proto_headers, version,
+  include_directories: include_directories('..'),
+  dependencies: [math, threads, libepoll, pixman, wayland_client, wayland_cursor,
+                 xkb, fontconfig, utf8proc, tllist, fcft, png, zlib],
+  link_with: pgolib)
+
+test('ascii-run', ascii_run_test)
