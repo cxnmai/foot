@@ -45,6 +45,7 @@
 #include "url-mode.h"
 #include "util.h"
 #include "tabs.h"
+#include "tab-bar.h"
 #include "xmalloc.h"
 
 #define TIME_SCROLL_DAMAGE 0
@@ -3598,6 +3599,12 @@ grid_render(struct terminal *term)
     for (size_t i = 0; i < term->render.workers.count; i++)
         pixman_region32_union(&damage, &damage, &buf->dirty[i + 1]);
 
+    int tab_height = tab_bar_height(term);
+    if (tab_height > 0) {
+        tab_bar_render(term, buf->pix[0], wayl_do_linear_blending(term->wl, term->conf));
+        pixman_region32_union_rect(&damage, &damage,
+                                  0, tab_bar_y(term), term->width, tab_height);
+    }
     pixman_region32_union(&buf->dirty[0], &buf->dirty[0], &damage);
 
     {
@@ -4529,6 +4536,7 @@ set_size_from_grid(struct terminal *term, int *width, int *height, int cols, int
     /* Include any configured padding */
     new_width  += (term->conf->pad_left + term->conf->pad_right) * term->scale;
     new_height += (term->conf->pad_top + term->conf->pad_bottom) * term->scale;
+    new_height += tab_bar_height_for_size(term, INT_MAX);
 
     /* Round to multiples of scale */
     new_width = round(term->scale * round(new_width / term->scale));
@@ -4628,7 +4636,8 @@ render_resize(struct terminal *term, int width, int height, uint8_t opts)
 
     /* Minimum window size (must be divisible by the scaling factor)*/
     const int min_width = roundf(scale * ceilf((min_cols * term->cell_width) / scale));
-    const int min_height = roundf(scale * ceilf((min_rows * term->cell_height) / scale));
+    const int tab_height = tab_bar_height_for_size(term, INT_MAX);
+    const int min_height = roundf(scale * ceilf((min_rows * term->cell_height + tab_height) / scale));
 
     width = max(width, min_width);
     height = max(height, min_height);
@@ -4638,8 +4647,11 @@ render_resize(struct terminal *term, int width, int height, uint8_t opts)
     const int max_pad_y = (height - min_height) / 2;
     const int pad_left  = min(max_pad_x, scale * term->conf->pad_left);
     const int pad_right = min(max_pad_x, scale * term->conf->pad_right);
-    const int pad_top   = min(max_pad_y, scale * term->conf->pad_top);
-    const int pad_bottom= min(max_pad_y, scale * term->conf->pad_bottom);
+    const bool tabs_at_top = term->conf->tab_bar.position == TAB_BAR_TOP;
+    const int pad_top   = min(max_pad_y, scale * term->conf->pad_top) +
+                         (tabs_at_top ? tab_height : 0);
+    const int pad_bottom= min(max_pad_y, scale * term->conf->pad_bottom) +
+                         (tabs_at_top ? 0 : tab_height);
 
     if (is_floating &&
         (opts & RESIZE_BY_CELLS) &&
@@ -4732,7 +4744,8 @@ render_resize(struct terminal *term, int width, int height, uint8_t opts)
 
     if (centered_padding && !term->window->is_resizing) {
         term->margins.left = total_x_pad / 2;
-        term->margins.top = total_y_pad / 2;
+        term->margins.top = (total_y_pad - tab_height) / 2 +
+                            (tabs_at_top ? tab_height : 0);
     } else {
         term->margins.left = pad_left;
         term->margins.top = pad_top;

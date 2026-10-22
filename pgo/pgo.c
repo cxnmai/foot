@@ -18,6 +18,11 @@
 #include "sixel.h"
 #include "user-notification.h"
 #include "vt.h"
+#include "tabs.h"
+
+bool tabs_is_active(const struct terminal *term) { return true; }
+void tabs_detach(struct terminal *term) { term->window = NULL; }
+void tabs_mark_activity(struct terminal *term, bool bell) {}
 
 extern bool fdm_ptmx(struct fdm *fdm, int fd, int events, void *data);
 
