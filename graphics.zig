@@ -357,15 +357,9 @@ fn query(self: *Engine, cmd: Command, data: []const u8) void {
     self.respond(cmd, null, 0);
 }
 
-fn removePlacementsOfImage(self: *Engine, slot: usize, free_data: bool) void {
-    var i: usize = 0;
-    while (i < self.placements.items.len) {
-        if (self.placements.items[i].image == slot)
-            _ = self.placements.orderedRemove(i)
-        else
-            i += 1;
-    }
-    if (free_data and self.images[slot] != null) self.removeImage(slot);
+fn removePlacementsOfImage(self: *Engine, slot: usize, id: ?u32, free_data: bool) void {
+    const referenced = placement_store.remove(&self.placements, slot, id);
+    if (free_data and !referenced) self.removeImage(slot);
 }
 
 fn sweep(self: *Engine) void {
@@ -401,7 +395,8 @@ fn delete(self: *Engine, cmd: Command) void {
         },
         'i', 'I' => {
             if (self.find(cmd)) |slot| {
-                removePlacementsOfImage(self, slot, selector == 'I');
+                const id: ?u32 = if (cmd.has('p')) cmd.unsigned('p', 0) else null;
+                removePlacementsOfImage(self, slot, id, selector == 'I');
                 changed = true;
             }
         },

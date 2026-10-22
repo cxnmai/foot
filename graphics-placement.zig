@@ -18,6 +18,21 @@ pub fn put(list: *std.ArrayList(Placement), allocator: std.mem.Allocator, limit:
     list.append(allocator, value) catch return error.ENOSPC;
 }
 
+pub fn remove(list: *std.ArrayList(Placement), image: usize, id: ?u32) bool {
+    var i: usize = 0;
+    while (i < list.items.len) {
+        const value = list.items[i];
+        if (value.image == image and (id == null or value.id == id.?))
+            _ = list.orderedRemove(i)
+        else
+            i += 1;
+    }
+    for (list.items) |value| {
+        if (value.image == image) return true;
+    }
+    return false;
+}
+
 test "named placements replace at capacity; anonymous and other images append" {
     const allocator = std.testing.allocator;
     var list: std.ArrayList(Placement) = .empty;
@@ -38,4 +53,9 @@ test "named placements replace at capacity; anonymous and other images append" {
     try std.testing.expectError(error.ENOSPC, put(&list, allocator, 3, value));
     try put(&list, allocator, 4, value);
     try std.testing.expectEqual(@as(usize, 4), list.items.len);
+    try std.testing.expect(remove(&list, 0, 1));
+    try std.testing.expectEqual(@as(usize, 3), list.items.len);
+    try std.testing.expect(!remove(&list, 0, null));
+    try std.testing.expectEqual(@as(usize, 1), list.items.len);
+    try std.testing.expectEqual(@as(usize, 1), list.items[0].image);
 }
