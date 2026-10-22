@@ -1183,6 +1183,60 @@ The default theme used is *colors-dark*, unless
 	Flash translucency. A value in the range 0.0-1.0, where 0.0 means
 	completely transparent, and 1.0 is opaque. Default: _0.5_.
 
+# SECTION: tab-bar
+
+Configures the native tab bar. For example:
+
+```
+[tab-bar]
+position=bottom
+style=separator
+title-template={index}: {title}
+separator=" │ "
+```
+
+*enabled*
+	Show the tab bar when the minimum tab count is reached. Default: _yes_.
+
+*min-tabs*
+	Minimum number of tabs required to show the bar, from 1 to 1024.
+	Default: _2_.
+
+*position*
+	One of *top* or *bottom*. Default: _bottom_.
+
+*style*
+	One of *fade* or *separator*. Default: _fade_.
+
+*background*
+	Tab bar background, as a six-digit RGB color. Default: _1f1f28_.
+
+*active-foreground*, *active-background*
+	Active tab's six-digit RGB colors. Defaults: _1f1f28_ and _76946a_.
+
+*inactive-foreground*, *inactive-background*
+	Inactive tabs' six-digit RGB colors. Defaults: _717c7c_ and _2a2a37_.
+
+*active-font-style*, *inactive-font-style*
+	One of *normal*, *bold*, *italic*, or *bold-italic*.
+	Defaults: _bold-italic_ (active), _normal_ (inactive).
+
+*max-title-length*
+	Maximum tab title length, from 1 to 1024. Default: _32_.
+
+*padding*
+	Horizontal padding in cells, from 0 to 32. Default: _1_.
+
+*title-template*, *active-title-template*
+	Inactive and active tab title templates. Only *{index}*, *{title}*,
+	*{activity}*, and *{bell}* placeholders are accepted. Unknown placeholders
+	and unmatched or nested braces are errors; templates are not shell
+	commands. Both default to _{title}_.
+
+*separator*
+	Text between tabs with *style=separator*. Quote the value to preserve
+	leading and trailing spaces. Default: _" │ "_.
+
 # SECTION: csd
 
 This section controls the look of the _CSDs_ (Client Side
@@ -1380,6 +1434,18 @@ e.g. *search-start=none*.
 	Spawns a new terminal. If the shell has been configured to emit
 	the OSC 7 escape sequence, the new terminal will start in the
 	current working directory. Default: _Control+Shift+n_.
+
+*tab-new*, *tab-close*
+	Create a native tab or close the active tab.
+	Defaults: _Control+Shift+t_ and _Control+Shift+w_.
+
+*tab-prev*, *tab-next*
+	Switch to the previous or next tab.
+	Defaults: _Control+Shift+h_ and _Control+Shift+l_.
+
+*tab-select-1*, *tab-select-2*, *tab-select-3*, *tab-select-4*, *tab-select-5*,
+*tab-select-6*, *tab-select-7*, *tab-select-8*, *tab-select-9*
+	Select a numbered tab. Defaults: _Control+Shift+1_ through _Control+Shift+9_.
 
 *minimize*
 	Minimizes the window. Default: _none_.
