@@ -1,0 +1,10 @@
+// Add alongside the existing kitty rule in ~/.config/niri/cfg/rules.kdl.
+// Global niri settings already supply: radius 12, clipping, no borders,
+// 2px focus ring (#8a8a8a99 / #50505055), and 10px gaps.
+window-rule {
+    match app-id="^foot-kitty-compare$"
+    background-effect {
+        blur true
+        xray false
+    }
+}
