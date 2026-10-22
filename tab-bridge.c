@@ -126,36 +126,39 @@ foot_tab_spawn(struct terminal *term)
 }
 
 bool
-tabs_resize(struct wl_window *win, int width, int height, uint8_t opts)
+foot_tab_resize_one(struct terminal *term, int width, int height, uint8_t opts)
 {
-    bool resized = render_resize(win->term, width, height, opts);
+    return render_resize(term, width, height, opts);
+}
+
+void
+foot_tab_save_size(struct wl_window *win)
+{
     win->content_width = roundf(win->term->width / win->term->scale);
     win->content_height = roundf(win->term->height / win->term->scale);
-    tll_foreach(win->tabs, it) {
-        if (it->item != win->term)
-            render_resize(it->item, win->content_width, win->content_height,
-                          opts & ~RESIZE_KEEP_GRID);
-    }
-    return resized;
 }
 
 void
-tabs_refresh_layout(struct wl_window *win)
+foot_tab_content_size(struct wl_window *win, int *width, int *height)
 {
-    if (!win->closing && win->is_configured)
-        tabs_resize(win, win->content_width, win->content_height, RESIZE_FORCE);
+    *width = win->content_width;
+    *height = win->content_height;
 }
 
 void
-tabs_close_window(struct wl_window *win)
+foot_tab_close_begin(struct wl_window *win)
 {
     win->closing = true;
-    tll_foreach(win->tabs, it)
-        term_shutdown(it->item);
 }
 
 void
-tabs_detach(struct terminal *term)
+foot_tab_shutdown(struct terminal *term)
+{
+    term_shutdown(term);
+}
+
+void
+foot_tab_remove(struct terminal *term)
 {
     struct wl_window *win = term->window;
     if (win == NULL)
@@ -167,22 +170,18 @@ tabs_detach(struct terminal *term)
             break;
         }
     }
-    if (tll_length(win->tabs) == 0) {
-        win->closing = true;
-        wayl_win_destroy(win);
-    } else {
-        if (win->term == term) {
-            struct terminal *next = tll_front(win->tabs);
-            tll_foreach(win->tabs, it) {
-                if (!it->item->shutdown.in_progress) {
-                    next = it->item;
-                    break;
-                }
-            }
-            tabs_activate(next);
-        }
-        tabs_refresh_layout(win);
-    }
+}
+
+void
+foot_tab_destroy_window(struct terminal *term)
+{
+    term->window->closing = true;
+    wayl_win_destroy(term->window);
+}
+
+void
+foot_tab_finish_detach(struct terminal *term)
+{
     term->window = NULL;
     tll_foreach(term->wl->seats, it) {
         if (it->item.kbd_focus == term)
@@ -199,7 +198,7 @@ tabs_detach(struct terminal *term)
 }
 
 void
-tabs_mark_activity(struct terminal *term, bool bell)
+foot_tab_mark_activity(struct terminal *term, bool bell)
 {
     if (term->window == NULL || term->window->term == term)
         return;
