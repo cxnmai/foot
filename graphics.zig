@@ -128,13 +128,14 @@ export fn kg_begin(ptr: ?*c.struct_kg_engine) void {
     self.packet_overflow = false;
 }
 export fn kg_put(ptr: ?*c.struct_kg_engine, byte: u8) void {
+    kg_put_bytes(ptr, @ptrCast(&byte), 1);
+}
+export fn kg_put_bytes(ptr: ?*c.struct_kg_engine, data: [*]const u8, size: usize) void {
     const self = engine(ptr) orelse return;
-    if (self.packet_len == self.packet.len) {
-        self.packet_overflow = true;
-    } else {
-        self.packet[self.packet_len] = byte;
-        self.packet_len += 1;
-    }
+    const count = @min(size, self.packet.len - self.packet_len);
+    @memcpy(self.packet[self.packet_len..][0..count], data[0..count]);
+    self.packet_len += count;
+    if (count != size) self.packet_overflow = true;
 }
 
 fn validate(cmd: Command) Failure!void {

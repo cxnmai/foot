@@ -31,6 +31,8 @@ struct kg_engine *kg_new(struct terminal *term);
 void kg_free(struct kg_engine *engine);
 void kg_begin(struct kg_engine *engine);
 void kg_put(struct kg_engine *engine, uint8_t byte);
+/* Append packet bytes, retaining the bounded prefix and recording overflow. */
+void kg_put_bytes(struct kg_engine *engine, const uint8_t *data, size_t size);
 void kg_end(struct kg_engine *engine);
 void kg_abort(struct kg_engine *engine);
 void kg_scroll(struct kg_engine *engine, int32_t screen, int32_t top,

@@ -1173,7 +1173,23 @@ vt_from_slave(struct terminal *term, const uint8_t *data, size_t len)
         case STATE_DCS_PASSTHROUGH:     current_state = state_dcs_passthrough_switch(term, *p); break;
         case STATE_SOS_PM_APC_STRING:   current_state = state_sos_pm_apc_string_switch(term, *p); break;
         case STATE_APC_ENTRY:           current_state = state_apc_entry_switch(term, *p); break;
-        case STATE_APC_GRAPHICS:        current_state = state_apc_graphics_switch(term, *p); break;
+        case STATE_APC_GRAPHICS: {
+            size_t count = 0;
+            while (count < len - i) {
+                const uint8_t byte = p[count];
+                if (byte == 0x1b || byte == 0x18 || byte == 0x1a ||
+                    (byte >= 0x80 && byte <= 0x9f))
+                    break;
+                count++;
+            }
+            if (count > 0) {
+                kg_put_bytes(term->graphics, p, count);
+                i += count - 1;
+                p += count - 1;
+            } else
+                current_state = state_apc_graphics_switch(term, *p);
+            break;
+        }
         case STATE_APC_ESCAPE:          current_state = state_apc_escape_switch(term, *p); break;
 
         case STATE_UTF8_21:             current_state = state_utf8_21_switch(term, *p); break;
