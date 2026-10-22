@@ -27,6 +27,7 @@
 
 #include "config.h"
 #include "terminal.h"
+#include "tabs.h"
 #include "ime.h"
 #include "input.h"
 #include "render.h"
@@ -971,9 +972,8 @@ static void
 xdg_toplevel_close(void *data, struct xdg_toplevel *xdg_toplevel)
 {
     struct wl_window *win = data;
-    struct terminal *term = win->term;
     LOG_DBG("xdg-toplevel: close");
-    term_shutdown(term);
+    tabs_close_window(win);
 }
 
 #if defined(XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION)
@@ -1144,7 +1144,7 @@ xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
         opts |= RESIZE_FORCE;
 #endif
 
-    bool resized = render_resize(term, new_width, new_height, opts);
+    bool resized = tabs_resize(win, new_width, new_height, opts);
 
     if (win->configure.is_activated)
         term_visual_focus_in(term);
@@ -1178,8 +1178,10 @@ xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
         wl_surface_commit(win->surface.surf);
     }
 
-    if (wasnt_configured)
-        term_window_configured(term);
+    if (wasnt_configured) {
+        tll_foreach(win->tabs, it)
+            term_window_configured(it->item);
+    }
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
@@ -1936,14 +1938,10 @@ wayl_destroy(struct wayland *wayl)
     if (wayl == NULL)
         return;
 
-    tll_foreach(wayl->terms, it) {
-        static bool have_warned = false;
-        if (!have_warned) {
-            have_warned = true;
-            LOG_WARN("there are terminals still running");
-            term_destroy(it->item);
-        }
-    }
+    if (tll_length(wayl->terms) > 0)
+        LOG_WARN("there are terminals still running");
+    while (tll_length(wayl->terms) > 0)
+        term_destroy(tll_front(wayl->terms));
 
     tll_free(wayl->terms);
 
@@ -2229,6 +2227,8 @@ wayl_win_destroy(struct wl_window *win)
         return;
 
     struct terminal *term = win->term;
+    win->closing = true;
+    win->unmapped = true;
 
     if (win->csd.move_timeout_fd != -1)
         close(win->csd.move_timeout_fd);
@@ -2303,6 +2303,7 @@ wayl_win_destroy(struct wl_window *win)
     wayl_roundtrip(win->term->wl);
 
     tll_free(win->on_outputs);
+    tll_free(win->tabs);
 
     tll_foreach(win->urls, it) {
         wayl_win_subsurface_destroy(&it->item.surf);

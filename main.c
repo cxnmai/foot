@@ -47,7 +47,7 @@ fdm_sigint(struct fdm *fdm, int signo, void *data)
 }
 
 struct sigusr_context {
-    struct terminal *term;
+    struct wayland *wayl;
     struct server *server;
 };
 
@@ -63,11 +63,14 @@ fdm_sigusr(struct fdm *fdm, int signo, void *data)
             server_global_theme_switch_to_dark(ctx->server);
         else
             server_global_theme_switch_to_light(ctx->server);
-    } else {
+    }
+    tll_foreach(ctx->wayl->terms, it) {
+        if (ctx->server != NULL && it->item->owned_conf == NULL)
+            continue;
         if (signo == SIGUSR1)
-            term_theme_switch_to_dark(ctx->term);
+            term_theme_switch_to_dark(it->item);
         else
-            term_theme_switch_to_light(ctx->term);
+            term_theme_switch_to_light(it->item);
     }
 
     return true;
@@ -668,7 +671,7 @@ main(int argc, char *const *argv)
     }
 
     struct sigusr_context sigusr_context = {
-        .term = term,
+        .wayl = wayl,
         .server = server,
     };
 
@@ -708,6 +711,10 @@ out:
     free(custom_cwd);
     server_destroy(server);
     term_destroy(term);
+    if (wayl != NULL) {
+        while (tll_length(wayl->terms) > 0)
+            term_destroy(tll_front(wayl->terms));
+    }
 
     shm_fini();
     render_destroy(renderer);
