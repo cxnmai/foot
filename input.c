@@ -35,6 +35,8 @@
 #include "selection.h"
 #include "spawn.h"
 #include "terminal.h"
+#include "tabs.h"
+#include "tab-bar.h"
 #include "tokenize.h"
 #include "unicode-mode.h"
 #include "url-mode.h"
@@ -95,6 +97,28 @@ execute_binding(struct seat *seat, struct terminal *term,
         return true;
 
     case BIND_ACTION_NOOP:
+        return true;
+
+    case BIND_ACTION_TAB_NEW:
+        tabs_new(term);
+        return true;
+    case BIND_ACTION_TAB_CLOSE:
+        term_shutdown(term);
+        return true;
+    case BIND_ACTION_TAB_PREV:
+    case BIND_ACTION_TAB_NEXT:
+        tabs_step(term, action == BIND_ACTION_TAB_PREV ? -1 : 1);
+        return true;
+    case BIND_ACTION_TAB_SELECT_1:
+    case BIND_ACTION_TAB_SELECT_2:
+    case BIND_ACTION_TAB_SELECT_3:
+    case BIND_ACTION_TAB_SELECT_4:
+    case BIND_ACTION_TAB_SELECT_5:
+    case BIND_ACTION_TAB_SELECT_6:
+    case BIND_ACTION_TAB_SELECT_7:
+    case BIND_ACTION_TAB_SELECT_8:
+    case BIND_ACTION_TAB_SELECT_9:
+        tabs_select(term, action - BIND_ACTION_TAB_SELECT_1);
         return true;
 
     case BIND_ACTION_SCROLLBACK_UP_PAGE:
@@ -1645,6 +1669,40 @@ key_press_release(struct seat *seat, struct terminal *term, uint32_t serial,
     const struct key_binding_set *bindings = key_binding_for(
         seat->wayl->key_binding_manager, term->conf, seat);
     xassert(bindings != NULL);
+
+    /* Tab actions remain available inside search, URL and Unicode modes. */
+    if (released && seat->kbd.last_shortcut_sym == sym)
+        return;
+    if (pressed) {
+        for (unsigned pass = 0; pass < 3; pass++) {
+            tll_foreach(bindings->key, it) {
+                const struct key_binding *bind = &it->item;
+                if (bind->action < BIND_ACTION_TAB_NEW ||
+                    bind->action > BIND_ACTION_TAB_SELECT_9)
+                    continue;
+                bool match = false;
+                if (pass == 0 && bind->mods == mods && mods != 0) {
+                    for (size_t i = 0; i < raw_count; i++)
+                        match |= bind->k.sym == raw_syms[i];
+                } else if (pass == 1) {
+                    match = bind->k.sym == sym && bind->mods == (mods & ~consumed);
+                } else if (pass == 2 && bind->mods == mods && mods != 0) {
+                    tll_foreach(bind->k.key_codes, code)
+                        match |= code->item == key;
+                }
+                if (!match)
+                    continue;
+                execute_binding(seat, term, bind, serial, 1);
+                seat->kbd.last_shortcut_sym = sym;
+                if (should_repeat && (bind->action == BIND_ACTION_TAB_PREV ||
+                                      bind->action == BIND_ACTION_TAB_NEXT))
+                    start_repeater(seat, key);
+                else
+                    stop_repeater(seat, -1);
+                return;
+            }
+        }
+    }
 
     if (term->unicode_mode.active) {
         if (pressed)

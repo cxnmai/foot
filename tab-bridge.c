@@ -109,7 +109,8 @@ transfer_focus(struct terminal *old, struct terminal *next)
             ime_update_cursor_rect(seat);
         }
         if (seat->kbd_focus == old) {
-            timerfd_settime(seat->kbd.repeat.fd, 0, &(struct itimerspec){0}, NULL);
+            if (!seat->kbd.repeat.dont_re_repeat)
+                timerfd_settime(seat->kbd.repeat.fd, 0, &(struct itimerspec){0}, NULL);
             if (seat->kbd.xkb_compose_state != NULL)
                 xkb_compose_state_reset(seat->kbd.xkb_compose_state);
             seat->kbd_focus = next;
