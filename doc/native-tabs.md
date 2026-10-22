@@ -70,6 +70,9 @@ The cursor blink interval is mapped from the system's 1200ms full cycle.
 `foot`, `footclient`, and `foot-kitty-compare`. Existing global niri settings already apply 12px rounded
 corners with clipping, no borders, a 2px focus ring and 10px gaps. Do not modify
 the packaged niri `shell/` files or replace the existing kitty rule.
+The rule also sets `draw-border-with-background false`: otherwise niri can
+paint a solid focus-ring background behind the entire focused window, hiding
+the wallpaper even though foot's surface remains translucent.
 
 The profile explicitly enables native blur as well as transparency:
 
