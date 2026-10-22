@@ -39,7 +39,9 @@ export fn tab_bar_y(term: ?*const Terminal) c_int {
 
 fn titleIterator(o: Options, tab: *Terminal, active: bool, index: []const u8) label.Iterator {
     const format = if (active and o.active_title_template != null)
-        o.active_title_template else o.title_template;
+        o.active_title_template
+    else
+        o.title_template;
     return label.Iterator.init(if (format == null) "{index}: {title}" else label.boundedString(format), .{
         .index = index,
         .title = label.boundedString(c.foot_tab_title(tab)),
@@ -63,7 +65,8 @@ fn metrics(o: Options, last: bool, text: label.Iterator) Metrics {
     const gap: i32 = if (fade and !last and columns > 1) 1 else 0;
     const separator = if (!fade and !last)
         label.measure(label.Iterator.literal(label.boundedString(o.separator)), columns - 1, c.foot_tab_char_width)
-    else 0;
+    else
+        0;
     const available = columns - gap - separator;
     const edge = if (fade) @min(4, @divTrunc(available - 1, 2)) else 0;
     const padding = @min(@as(i32, @intCast(@min(o.padding, 32))), @divTrunc(available - 2 * edge - 1, 2));
@@ -164,13 +167,10 @@ export fn tab_bar_hit_test(term: ?*Terminal, x: c_int, y: c_int) ?*Terminal {
     return null;
 }
 
-fn paintText(term: *Terminal, pix: *anyopaque, o: Options, text: label.Iterator,
-    columns: i32, x: i32, style: u32, foreground: u32, srgb: bool) void
-{
+fn paintText(term: *Terminal, pix: *anyopaque, o: Options, text: label.Iterator, columns: i32, x: i32, style: u32, foreground: u32, srgb: bool) void {
     var scanner = label.Scanner{ .iterator = text, .limit = columns };
     while (scanner.next(c.foot_tab_char_width)) |ch| {
-        c.foot_tab_glyph(pix, term, if (style < 4) style else 0, ch.codepoint,
-            x + ch.column * o.cell_width, barY(o), x, columns * o.cell_width, foreground, srgb);
+        c.foot_tab_glyph(pix, term, if (style < 4) style else 0, ch.codepoint, x + ch.column * o.cell_width, barY(o), x, columns * o.cell_width, foreground, srgb);
     }
 }
 
@@ -190,13 +190,11 @@ fn renderTab(term: *Terminal, pix: *anyopaque, o: Options, active: ?*Terminal, t
     }
     var buffer: [32]u8 = undefined;
     const number = std.fmt.bufPrint(&buffer, "{d}", .{tab.index + 1}) catch unreachable;
-    paintText(term, pix, o, titleIterator(o, tab.tab, selected, number), tab.size.text_columns,
-        tab.x + (tab.size.edge + tab.size.padding) * o.cell_width, style, fg, srgb);
+    paintText(term, pix, o, titleIterator(o, tab.tab, selected, number), tab.size.text_columns, tab.x + (tab.size.edge + tab.size.padding) * o.cell_width, style, fg, srgb);
     if (tab.size.separator_columns > 0) {
         const width = tab.size.separator_columns * o.cell_width;
         c.foot_tab_fill(pix, end, y, width, o.cell_height, o.inactive_background, 65535, srgb);
-        paintText(term, pix, o, label.Iterator.literal(label.boundedString(o.separator)),
-            tab.size.separator_columns, end, 0, o.inactive_foreground, srgb);
+        paintText(term, pix, o, label.Iterator.literal(label.boundedString(o.separator)), tab.size.separator_columns, end, 0, o.inactive_foreground, srgb);
     }
 }
 
@@ -241,22 +239,38 @@ const TestABI = struct {
         fills = 0;
         glyphs = 0;
     }
-    fn foot_tab_window(_: *struct_terminal) ?*struct_wl_window { return @ptrFromInt(256); }
-    fn foot_tab_count(_: *struct_wl_window) usize { return count; }
+    fn foot_tab_window(_: *struct_terminal) ?*struct_wl_window {
+        return @ptrFromInt(256);
+    }
+    fn foot_tab_count(_: *struct_wl_window) usize {
+        return count;
+    }
     fn foot_tab_at(_: *struct_wl_window, index: usize) ?*struct_terminal {
         return if (index < count) @ptrFromInt(4096 + index) else null;
     }
-    fn foot_tab_active(win: *struct_wl_window) ?*struct_terminal { return foot_tab_at(win, active_index); }
-    fn foot_tab_options(_: *const struct_terminal, out: *struct_foot_tab_options) void { out.* = configuration; }
-    fn foot_tab_title(_: *struct_terminal) [*c]const u8 { return "界a\u{301}{bell}"; }
-    fn foot_tab_activity(_: *struct_terminal) bool { return true; }
-    fn foot_tab_bell(_: *struct_terminal) bool { return true; }
-    fn foot_tab_char_width(cp: u32) i32 {
-        return switch (cp) { 0x754c => 2, 0x301 => 0, else => 1 };
+    fn foot_tab_active(win: *struct_wl_window) ?*struct_terminal {
+        return foot_tab_at(win, active_index);
     }
-    fn foot_tab_fill(_: *anyopaque, x: i32, y: i32, width: i32, height: i32,
-        color: u32, alpha: u16, _: bool) void
-    {
+    fn foot_tab_options(_: *const struct_terminal, out: *struct_foot_tab_options) void {
+        out.* = configuration;
+    }
+    fn foot_tab_title(_: *struct_terminal) [*c]const u8 {
+        return "界a\u{301}{bell}";
+    }
+    fn foot_tab_activity(_: *struct_terminal) bool {
+        return true;
+    }
+    fn foot_tab_bell(_: *struct_terminal) bool {
+        return true;
+    }
+    fn foot_tab_char_width(cp: u32) i32 {
+        return switch (cp) {
+            0x754c => 2,
+            0x301 => 0,
+            else => 1,
+        };
+    }
+    fn foot_tab_fill(_: *anyopaque, x: i32, y: i32, width: i32, height: i32, color: u32, alpha: u16, _: bool) void {
         std.debug.assert(x >= 0 and width > 0 and x + width <= configuration.width);
         std.debug.assert(y == barY(configuration) and height == configuration.cell_height);
         std.debug.assert(y >= 0 and y + height <= configuration.height);
@@ -268,9 +282,7 @@ const TestABI = struct {
         }
         fills += 1;
     }
-    fn foot_tab_glyph(_: *anyopaque, _: *struct_terminal, _: u32, _: u32,
-        x: i32, y: i32, clip_x: i32, clip_width: i32, _: u32, _: bool) void
-    {
+    fn foot_tab_glyph(_: *anyopaque, _: *struct_terminal, _: u32, _: u32, x: i32, y: i32, clip_x: i32, clip_width: i32, _: u32, _: bool) void {
         std.debug.assert(clip_x >= 0 and clip_x + clip_width <= configuration.width);
         std.debug.assert(x >= clip_x and x < clip_x + clip_width and y == barY(configuration));
         glyphs += 1;
@@ -296,7 +308,9 @@ test "tab-bar height reserves one content row and supports prospective sizes" {
 
 test "tab-bar viewport retains active whole tab" {
     const Widths = struct {
-        fn at(values: []const i32, index: usize) i32 { return values[index]; }
+        fn at(values: []const i32, index: usize) i32 {
+            return values[index];
+        }
     };
     const widths = [_]i32{ 10, 10, 10, 10 };
     try std.testing.expectEqual(@as(usize, 1), firstVisible(@as([]const i32, &widths), 2, 25, Widths.at));

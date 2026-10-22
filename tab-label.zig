@@ -38,7 +38,7 @@ pub const Iterator = struct {
             if (self.value.len == 0 and self.expand) {
                 const fields = [_][]const u8{ "{index}", "{title}", "{activity}", "{bell}" };
                 const values = [_][]const u8{
-                    self.values.index, self.values.title,
+                    self.values.index,                 self.values.title,
                     if (self.values.activity) "•" else "",
                     if (self.values.bell) "*" else "",
                 };
@@ -121,7 +121,10 @@ fn expectText(expected: []const u8, source: Iterator) !void {
 
 test "tab-label expands known fields once and preserves unknown fields literally" {
     try expectText("2: {bell}•*{unknown}", Iterator.init("{index}: {title}{activity}{bell}{unknown}", .{
-        .index = "2", .title = "{bell}", .activity = true, .bell = true,
+        .index = "2",
+        .title = "{bell}",
+        .activity = true,
+        .bell = true,
     }));
     try expectText("", Iterator.init("{title}{activity}{bell}", .{}));
     try expectText("{title}", Iterator.literal("{title}"));
