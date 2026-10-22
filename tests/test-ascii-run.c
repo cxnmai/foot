@@ -59,6 +59,25 @@ scalar(struct terminal *t, uint8_t c)
 }
 
 static void
+same_ranges(const struct row_ranges *a, const struct row_ranges *b,
+            enum row_range_type type)
+{
+    assert(a->count == b->count);
+    for (int i = 0; i < a->count; i++) {
+        const struct row_range *x = &a->v[i], *y = &b->v[i];
+        assert(x->start == y->start && x->end == y->end);
+        if (type == ROW_RANGE_URI) {
+            assert(x->uri.id == y->uri.id);
+            assert(strcmp(x->uri.uri, y->uri.uri) == 0);
+        } else {
+            assert(x->underline.style == y->underline.style);
+            assert(x->underline.color_src == y->underline.color_src);
+            assert(x->underline.color == y->underline.color);
+        }
+    }
+}
+
+static void
 same(const struct fixture *a, const struct fixture *b)
 {
     const struct terminal *x = &a->term, *y = &b->term;
@@ -68,6 +87,12 @@ same(const struct fixture *a, const struct fixture *b)
     assert(x->grid->cur_row == a->row_ptrs[x->grid->cursor.point.row]);
     assert(y->grid->cur_row == b->row_ptrs[y->grid->cursor.point.row]);
     assert(x->vt.last_printed == y->vt.last_printed);
+    assert(x->ascii_printer == y->ascii_printer);
+    assert(x->bits_affecting_ascii_printer.value == y->bits_affecting_ascii_printer.value);
+    assert(x->charsets.selected == y->charsets.selected);
+    assert(x->charsets.saved == y->charsets.saved);
+    for (int i = 0; i < 4; i++)
+        assert(x->charsets.set[i] == y->charsets.set[i]);
     assert(memcmp(&x->vt.attrs, &y->vt.attrs, sizeof(x->vt.attrs)) == 0);
 #if defined(FOOT_GRAPHEME_CLUSTERING)
     assert(x->vt.grapheme_state == y->vt.grapheme_state);
@@ -77,6 +102,13 @@ same(const struct fixture *a, const struct fixture *b)
         assert(a->rows[r].dirty == b->rows[r].dirty);
         assert(a->rows[r].linebreak == b->rows[r].linebreak);
         assert(memcmp(a->cells[r], b->cells[r], sizeof(a->cells[r])) == 0);
+        const struct row_data *p = a->rows[r].extra, *q = b->rows[r].extra;
+        assert((p == NULL) == (q == NULL));
+        if (p != NULL) {
+            same_ranges(&p->uri_ranges, &q->uri_ranges, ROW_RANGE_URI);
+            same_ranges(&p->underline_ranges, &q->underline_ranges,
+                        ROW_RANGE_UNDERLINE);
+        }
     }
 }
 
@@ -184,10 +216,87 @@ test_random_ascii_and_margins(void)
     }
 }
 
+static void
+test_metadata_fallback(void)
+{
+    struct fixture batch, reference;
+    for (int kind = 0; kind < 3; kind++) {
+        init(&batch, COLS, 8);
+        init(&reference, COLS, 8);
+        struct fixture *fixtures[] = {&batch, &reference};
+        for (int f = 0; f < 2; f++) {
+            struct row *row = &fixtures[f]->rows[0];
+            for (int col = 3; col < 21; col++) {
+                if (kind != 1)
+                    grid_row_uri_range_put(row, col, "https://example.org", 42);
+                if (kind != 0)
+                    grid_row_underline_range_put(row, col,
+                        (struct underline_range_data){
+                            .style = UNDERLINE_CURLY,
+                            .color_src = COLOR_RGB, .color = 0xabcdef});
+            }
+        }
+        const uint8_t data[] = "metadata";
+        check_run(&batch, &reference, data, sizeof(data) - 1, 0);
+        check_stream(&batch, &reference, data, sizeof(data) - 1);
+        for (int f = 0; f < 2; f++)
+            for (int r = 0; r < ROWS; r++)
+                grid_row_reset_extra(&fixtures[f]->rows[r]);
+    }
+}
+
+static void
+test_generic_fallback(void)
+{
+    struct fixture batch, reference;
+    const struct config conf = {.url.osc8_underline = OSC8_UNDERLINE_ALWAYS};
+    for (int mode = 0; mode < 5; mode++) {
+        init(&batch, COLS, 8);
+        init(&reference, COLS, 8);
+        struct fixture *fixtures[] = {&batch, &reference};
+        for (int f = 0; f < 2; f++) {
+            struct terminal *t = &fixtures[f]->term;
+            t->conf = &conf;
+            switch (mode) {
+            case 0:
+                t->insert_mode = t->bits_affecting_ascii_printer.insert_mode = true;
+                break;
+            case 1:
+                t->charsets.set[G0] = CHARSET_GRAPHIC;
+                t->bits_affecting_ascii_printer.charset = true;
+                break;
+            case 2:
+                t->vt.underline.style = UNDERLINE_CURLY;
+                t->bits_affecting_ascii_printer.underline_style = true;
+                break;
+            case 3:
+                t->vt.underline.color_src = COLOR_RGB;
+                t->vt.underline.color = 0x112233;
+                t->bits_affecting_ascii_printer.underline_color = true;
+                break;
+            case 4:
+                t->vt.osc8.uri = (char *)"https://example.org";
+                t->vt.osc8.id = 123;
+                t->bits_affecting_ascii_printer.osc8 = true;
+                break;
+            }
+            term_update_ascii_printer(t);
+        }
+        const uint8_t data[] = "`q~ generic";
+        check_run(&batch, &reference, data, sizeof(data) - 1, 0);
+        check_stream(&batch, &reference, data, sizeof(data) - 1);
+        for (int f = 0; f < 2; f++)
+            for (int r = 0; r < ROWS; r++)
+                grid_row_reset_extra(&fixtures[f]->rows[r]);
+    }
+}
+
 int
 main(void)
 {
     test_input_boundaries();
     test_random_ascii_and_margins();
+    test_metadata_fallback();
+    test_generic_fallback();
     return 0;
 }
