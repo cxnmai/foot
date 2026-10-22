@@ -65,6 +65,7 @@ In addition to the dev variant of the packages above, you need:
 
 * meson
 * ninja
+* Zig 0.17.0 or newer (native tabs; see [native-tabs.md](doc/native-tabs.md))
 * wayland protocols
 * ncurses (needed to generate terminfo)
 * scdoc (for man page generation, not needed if documentation is disabled)
