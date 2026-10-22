@@ -177,6 +177,7 @@ foot_tab_activate_native(struct terminal *next)
     const bool focused = old->visual_focus;
     term_visual_focus_out(old);
     win->term = next;
+    render_discard_grid_cache(old);
     transfer_focus(old, next);
     next->tab_activity = next->tab_bell = false;
     if (focused)

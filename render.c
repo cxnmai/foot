@@ -3343,6 +3343,18 @@ dirty_cursor(struct terminal *term)
     row->dirty = true;
 }
 
+void
+render_discard_grid_cache(struct terminal *term)
+{
+    /* Hidden tabs retain their grids, not disposable full-window pixels.
+     * Busy buffers are freed by shm on the compositor's release event. */
+    render_wait_for_preapply_damage(term);
+    shm_unref(term->render.last_buf);
+    term->render.last_buf = NULL;
+    shm_purge(term->render.chains.grid);
+    term->render.frames_since_last_immediate_release = 0;
+}
+
 static void
 grid_render(struct terminal *term)
 {

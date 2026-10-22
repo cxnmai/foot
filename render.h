@@ -51,3 +51,4 @@ struct csd_data get_csd_data(const struct terminal *term, enum csd_surface surf_
 
 void render_buffer_release_callback(struct buffer *buf, void *data);
 void render_wait_for_preapply_damage(struct terminal *term);
+void render_discard_grid_cache(struct terminal *term);
