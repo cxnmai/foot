@@ -1,4 +1,4 @@
-#include "tabs.h"
+#include "tab-bridge.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -11,7 +11,7 @@
 #include "wayland.h"
 
 bool
-tabs_is_active(const struct terminal *term)
+foot_tab_is_active(const struct terminal *term)
 {
     return term->window != NULL && term->window->term == term &&
            !term->window->closing && !term->shutdown.in_progress;
@@ -72,7 +72,7 @@ transfer_focus(struct terminal *old, struct terminal *next)
 }
 
 void
-tabs_activate(struct terminal *next)
+foot_tab_activate_native(struct terminal *next)
 {
     struct wl_window *win = next->window;
     struct terminal *old = win->term;
@@ -109,41 +109,9 @@ tabs_activate(struct terminal *next)
     render_refresh(next);
 }
 
-void
-tabs_select(struct terminal *term, unsigned index)
+struct terminal *
+foot_tab_spawn(struct terminal *term)
 {
-    unsigned i = 0;
-    tll_foreach(term->window->tabs, it) {
-        if (it->item->shutdown.in_progress)
-            continue;
-        if (i++ == index) {
-            tabs_activate(it->item);
-            return;
-        }
-    }
-}
-
-void
-tabs_step(struct terminal *term, int direction)
-{
-    unsigned count = 0, active = 0;
-    tll_foreach(term->window->tabs, it) {
-        if (it->item->shutdown.in_progress)
-            continue;
-        if (it->item == term)
-            active = count;
-        count++;
-    }
-    if (count > 0)
-        tabs_select(term, direction < 0 ? (active + count - 1) % count
-                                       : (active + 1) % count);
-}
-
-bool
-tabs_new(struct terminal *term)
-{
-    if (!term->conf->tab_bar.enabled || !tabs_is_active(term))
-        return false;
     struct config *conf = config_clone(term->conf);
     struct terminal *next = term_init(
         conf, term->fdm, term->reaper, term->wl, term->foot_exe, term->cwd,
@@ -151,12 +119,10 @@ tabs_new(struct terminal *term)
     if (next == NULL) {
         config_free(conf);
         free(conf);
-        return false;
+        return NULL;
     }
     next->owned_conf = conf;
-    tabs_activate(next);
-    tabs_refresh_layout(next->window);
-    return true;
+    return next;
 }
 
 bool
