@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <sys/timerfd.h>
+#include <xkbcommon/xkbcommon-compose.h>
 
 #include "config.h"
 #include "ime.h"

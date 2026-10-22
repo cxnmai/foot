@@ -1,3 +1,7 @@
+comptime {
+    _ = @import("tab-bar.zig");
+}
+
 const c = @import("tab_abi");
 const Term = c.struct_terminal;
 const Window = c.struct_wl_window;

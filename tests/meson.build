@@ -6,3 +6,10 @@ config_test = executable(
   dependencies: [pixman, xkb, fontconfig, wayland_client, fcft, tllist])
 
 test('config', config_test)
+
+test('zig-tabs', zig,
+  args: ['test', '-O', 'safe', '-lc', '--dep', 'tab_abi',
+         '-Mroot=' + meson.project_source_root() / 'tab-bar.zig',
+         '-Mtab_abi=' + tab_abi.full_path()],
+  depends: tabs_object,
+  timeout: 120)

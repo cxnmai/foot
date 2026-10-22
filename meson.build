@@ -315,6 +315,22 @@ if get_option('b_pgo') == 'generate'
   )
 endif
 
+# Zig owns the native tab policy and renderer; translate only the narrow ABI.
+zig = find_program('zig', required: true)
+zig_version = run_command(zig, 'version', check: true).stdout().strip()
+if not zig_version.version_compare('>=0.17.0')
+  error('Native tabs require Zig 0.17.0 or newer')
+endif
+tab_abi = custom_target(
+  'tab-abi', input: 'tab-bridge.h', output: 'tab-abi.zig',
+  command: [zig, 'translate-c', '-lc', '@INPUT@'], capture: true)
+tabs_object = custom_target(
+  'tabs-zig', input: ['tabs.zig', tab_abi], output: 'tabs-zig.o',
+  depend_files: files('tab-bar.zig', 'tab-label.zig'),
+  command: [zig, 'build-obj', '-O', 'safe', '-fPIC', '-fcompiler-rt', '-lc',
+            '--dep', 'tab_abi', '-Mroot=@INPUT0@', '-Mtab_abi=@INPUT1@',
+            '-femit-bin=@OUTPUT@'])
+
 executable(
   'foot',
   'async.c', 'async.h',
@@ -332,6 +348,8 @@ executable(
   'quirks.c', 'quirks.h',
   'reaper.c', 'reaper.h',
   'render.c', 'render.h',
+  'tab-bridge.c', 'tab-bridge.h', 'tab-draw.c', 'tabs.h', 'tab-bar.h',
+  tabs_object,
   'search.c', 'search.h',
   'server.c', 'server.h', 'client-protocol.h',
   'shm.c', 'shm.h',
