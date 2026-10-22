@@ -93,7 +93,9 @@ pub fn decode(payload: []const u8, more: bool, out: []u8) Failure!usize {
 
 test "graphics-command preserves presence and rejects overflow and malformed base64" {
     const cmd = try parse("a=T,f=32,s=360,v=423,o=z,m=1,i=4294967295,z=-2147483648");
-    try std.testing.expectEqual(@as(u32, 4294967295), cmd.unsigned('i', 0));
+    // Compare as i64: Zig 0.17 miscompiles @intCast(runtime i64 == maxInt(u32)).
+    try std.testing.expect(cmd.get('i', 0) == 4294967295);
+    try std.testing.expect(cmd.get('z', 0) == -2147483648);
     try std.testing.expect(!cmd.has('q'));
     try std.testing.expect((try parse("m=0,q=2")).continuation());
     try std.testing.expectError(error.EINVAL, parse("i=4294967296"));
