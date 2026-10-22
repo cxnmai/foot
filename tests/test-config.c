@@ -1500,6 +1500,75 @@ test_section_text_bindings(void)
 }
 
 static void
+test_tab_bar_defaults_and_clone(void)
+{
+    struct config conf;
+    config_override_t overrides = tll_init();
+    user_notifications_t notifications = tll_init();
+    xassert(config_load(&conf, "/dev/null", &notifications, &overrides, true, false));
+    xassert(conf.tab_bar.enabled);
+    xassert(conf.tab_bar.min_tabs == 2);
+    xassert(conf.tab_bar.position == TAB_BAR_BOTTOM);
+    xassert(conf.tab_bar.style == TAB_BAR_FADE);
+    xassert(conf.tab_bar.padding == 1);
+    xassert(conf.tab_bar.max_title_length == 32);
+    xassert(conf.tab_bar.background == 0x1f1f28);
+    xassert(conf.tab_bar.active_foreground == 0x1f1f28);
+    xassert(conf.tab_bar.active_background == 0x76946a);
+    xassert(conf.tab_bar.inactive_foreground == 0x717c7c);
+    xassert(conf.tab_bar.inactive_background == 0x2a2a37);
+    xassert(conf.tab_bar.active_font_style == 3);
+    xassert(conf.tab_bar.inactive_font_style == 0);
+    xassert(streq(conf.tab_bar.title_template, "{title}"));
+    xassert(streq(conf.tab_bar.active_title_template, "{title}"));
+    xassert(streq(conf.tab_bar.separator, " │ "));
+
+    const xkb_keysym_t symbols[] = {
+        XKB_KEY_t, XKB_KEY_w, XKB_KEY_h, XKB_KEY_l,
+        XKB_KEY_1, XKB_KEY_2, XKB_KEY_3, XKB_KEY_4, XKB_KEY_5,
+        XKB_KEY_6, XKB_KEY_7, XKB_KEY_8, XKB_KEY_9,
+    };
+    xassert(BIND_ACTION_TAB_SELECT_9 - BIND_ACTION_TAB_SELECT_1 == 8);
+    xassert(BIND_ACTION_KEY_COUNT == BIND_ACTION_TAB_SELECT_9 + 1);
+    for (size_t i = 0; i < ALEN(symbols); i++) {
+        size_t matches = 0;
+        for (size_t j = 0; j < conf.bindings.key.count; j++) {
+            const struct config_key_binding *binding = &conf.bindings.key.arr[j];
+            if (binding->action != BIND_ACTION_TAB_NEW + (int)i)
+                continue;
+            matches++;
+            xassert(binding->k.sym == symbols[i]);
+            xassert(tll_length(binding->modifiers) == 2);
+            xassert(have_modifier(&binding->modifiers, XKB_MOD_NAME_CTRL));
+            xassert(have_modifier(&binding->modifiers, XKB_MOD_NAME_SHIFT));
+        }
+        xassert(matches == 1);
+    }
+
+    struct config *clone = config_clone(&conf);
+    xassert(clone->tab_bar.title_template != conf.tab_bar.title_template);
+    xassert(clone->tab_bar.active_title_template != conf.tab_bar.active_title_template);
+    xassert(clone->tab_bar.separator != conf.tab_bar.separator);
+    FILE *file = tmpfile();
+    xassert(file != NULL);
+    fputs("[tab-bar]\nposition=top\nstyle=separator\n"
+          "title-template='{index}: {title}'\nactive-title-template='{bell}{title}'\n"
+          "separator=' | '\n", file);
+    rewind(file);
+    xassert(parse_config_file(file, clone, "unittest", true));
+    fclose(file);
+    xassert(clone->tab_bar.position == TAB_BAR_TOP);
+    xassert(clone->tab_bar.style == TAB_BAR_SEPARATOR);
+    xassert(streq(clone->tab_bar.title_template, "{index}: {title}"));
+    xassert(streq(clone->tab_bar.active_title_template, "{bell}{title}"));
+    xassert(streq(clone->tab_bar.separator, " | "));
+    config_free(&conf);
+    xassert(streq(clone->tab_bar.title_template, "{index}: {title}"));
+    config_free(clone);
+    free(clone);
+}
+
+static void
 test_section_environment(void)
 {
     struct config conf = {0};
@@ -1642,6 +1711,7 @@ main(int argc, const char *const *argv)
     test_section_mouse_bindings();
     test_section_mouse_bindings_collisions();
     test_section_text_bindings();
+    test_tab_bar_defaults_and_clone();
     test_section_environment();
     test_section_tweak();
     log_deinit();
