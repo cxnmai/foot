@@ -23,6 +23,7 @@
 bool tabs_is_active(const struct terminal *term) { return true; }
 void tabs_detach(struct terminal *term) { term->window = NULL; }
 void tabs_mark_activity(struct terminal *term, bool bell) {}
+bool tabs_resize(struct wl_window *win, int width, int height, uint8_t opts) { return true; }
 
 extern bool fdm_ptmx(struct fdm *fdm, int fd, int events, void *data);
 
