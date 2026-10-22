@@ -369,7 +369,9 @@ struct xdg_activation_token_context {
 };
 
 struct wayland;
+struct presentation_context;
 struct wl_window {
+    tll(struct presentation_context *) presentation_feedback;
     struct terminal *term;  /* Active session; window owns tab membership */
     tll(struct terminal *) tabs;
     bool closing;

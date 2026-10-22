@@ -2235,6 +2235,7 @@ wayl_win_destroy(struct wl_window *win)
     struct terminal *term = win->term;
     win->closing = true;
     win->unmapped = true;
+    render_presentation_cleanup(win);
 
     if (win->csd.move_timeout_fd != -1)
         close(win->csd.move_timeout_fd);

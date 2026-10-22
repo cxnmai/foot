@@ -122,10 +122,32 @@ sync_output(void *data,
 }
 
 struct presentation_context {
+    struct wl_window *win;
+    struct wp_presentation_feedback *feedback;
     double refresh_rate;  /* Snapshot: feedback may outlive its terminal tab */
     struct timeval input;
     struct timeval commit;
 };
+
+static void
+presentation_context_free(struct presentation_context *ctx)
+{
+    tll_foreach(ctx->win->presentation_feedback, it) {
+        if (it->item == ctx) {
+            tll_remove(ctx->win->presentation_feedback, it);
+            break;
+        }
+    }
+    wp_presentation_feedback_destroy(ctx->feedback);
+    free(ctx);
+}
+
+void
+render_presentation_cleanup(struct wl_window *win)
+{
+    while (tll_length(win->presentation_feedback) > 0)
+        presentation_context_free(tll_front(win->presentation_feedback));
+}
 
 static void
 presented(void *data,
@@ -205,16 +227,13 @@ presented(void *data,
 #undef _log_fmt
 
 done:
-    wp_presentation_feedback_destroy(wp_presentation_feedback);
-    free(ctx);
+    presentation_context_free(ctx);
 }
 
 static void
 discarded(void *data, struct wp_presentation_feedback *wp_presentation_feedback)
 {
-    struct presentation_context *ctx = data;
-    wp_presentation_feedback_destroy(wp_presentation_feedback);
-    free(ctx);
+    presentation_context_free(data);
 }
 
 static const struct wp_presentation_feedback_listener presentation_feedback_listener = {
@@ -3701,6 +3720,8 @@ grid_render(struct terminal *term)
         } else {
             struct presentation_context *ctx = xmalloc(sizeof(*ctx));
             *ctx = (struct presentation_context){
+                .win = term->window,
+                .feedback = feedback,
                 .refresh_rate = tll_length(term->window->on_outputs) > 0
                     ? tll_front(term->window->on_outputs)->refresh : 0.,
                 .input.tv_sec = term->render.input_time.tv_sec,
@@ -3709,6 +3730,7 @@ grid_render(struct terminal *term)
                 .commit.tv_usec = commit_time.tv_nsec / 1000,
             };
 
+            tll_push_back(term->window->presentation_feedback, ctx);
             wp_presentation_feedback_add_listener(
                 feedback, &presentation_feedback_listener, ctx);
 

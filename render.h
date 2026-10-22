@@ -9,6 +9,7 @@
 struct renderer;
 struct renderer *render_init(struct fdm *fdm, struct wayland *wayl);
 void render_destroy(struct renderer *renderer);
+void render_presentation_cleanup(struct wl_window *win);
 
 enum resize_options {
     RESIZE_NORMAL = 0,
